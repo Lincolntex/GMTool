@@ -1,6 +1,6 @@
 # Session UI Overhaul Plan
 
-Status: Proposed
+Status: Implemented
 
 ## Goal
 

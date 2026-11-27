@@ -1,14 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  Cards,
+  Image as ImageIcon,
+  Notebook,
+  Triangle,
+  User,
+  WarningCircle,
+  type Icon as PhosphorIcon,
+} from '@phosphor-icons/react';
 import type { PublicRoom, Role, TokenInfo } from '../../shared/types';
 import { gmTokenShape } from '../../shared/shapes';
 import { GM_TOKEN_COLORS, tokenInitials, tokenShapeForToken } from '../lib/tokens';
+import { SessionNavButton } from './SessionNavButton';
 import { TokenGlyph } from './ShapeIcon';
 
-type DrawerSide = 'left' | 'right';
-
-interface RailTab {
+interface SessionNavItem {
   id: string;
   label: string;
+  icon: PhosphorIcon;
 }
 
 interface SessionDrawersProps {
@@ -22,8 +31,25 @@ interface SessionDrawersProps {
   onRenameToken: (tokenId: string, name: string) => void;
   onDeleteToken: (tokenId: string) => void;
   onToggleHidden: (tokenId: string, hidden: boolean) => void;
+  onPingToken?: (token: TokenInfo) => void;
   onSelectScene: (index: number) => void;
 }
+
+const GM_LEFT_TABS: SessionNavItem[] = [
+  { id: 'scene', label: 'Scenes', icon: ImageIcon },
+  { id: 'token', label: 'Token', icon: Triangle },
+  { id: 'requests', label: 'Requests', icon: WarningCircle },
+];
+
+const PLAYER_LEFT_TABS: SessionNavItem[] = [
+  { id: 'scene', label: 'Scene', icon: ImageIcon },
+  { id: 'character', label: 'Character', icon: User },
+  { id: 'domainCards', label: 'Domain cards', icon: Cards },
+];
+
+const RIGHT_TABS: SessionNavItem[] = [
+  { id: 'notes', label: 'Notes', icon: Notebook },
+];
 
 function DrawerCoin({
   token,
@@ -88,32 +114,22 @@ export function SessionDrawers({
   onRenameToken,
   onDeleteToken,
   onToggleHidden,
+  onPingToken,
   onSelectScene,
 }: SessionDrawersProps) {
-  const leftTabs: RailTab[] =
-    role === 'gm'
-      ? [
-          { id: 'scene', label: 'Scene' },
-          { id: 'token', label: 'Token' },
-          { id: 'requests', label: 'Requests' },
-        ]
-      : [{ id: 'character', label: 'Character' }];
-  const rightTabs: RailTab[] =
-    role === 'player'
-      ? [
-          { id: 'stats', label: 'Stats' },
-          { id: 'notes', label: 'Notes' },
-        ]
-      : [{ id: 'notes', label: 'Notes' }];
-
-  const [openSide, setOpenSide] = useState<DrawerSide | null>(null);
-  const [leftTab, setLeftTab] = useState(leftTabs[0]?.id ?? 'scene');
-  const [rightTab, setRightTab] = useState(rightTabs[0]?.id ?? 'notes');
+  const leftTabs = role === 'gm' ? GM_LEFT_TABS : PLAYER_LEFT_TABS;
+  const [leftId, setLeftId] = useState<string | null>(null);
+  const [rightId, setRightId] = useState<string | null>(null);
   const [tokenName, setTokenName] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [statsTokenId, setStatsTokenId] = useState<string | null>(null);
   const editCommitted = useRef(false);
+  const navButtons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const leftIdRef = useRef<string | null>(null);
+  const rightIdRef = useRef<string | null>(null);
+  leftIdRef.current = leftId;
+  rightIdRef.current = rightId;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
@@ -122,8 +138,13 @@ export function SessionDrawers({
         return;
       }
       if (event.key === 'Escape') {
-        setOpenSide(null);
+        const left = leftIdRef.current;
+        const right = rightIdRef.current;
+        setLeftId(null);
+        setRightId(null);
         setStatsTokenId(null);
+        if (left) navButtons.current[`left:${left}`]?.focus();
+        else if (right) navButtons.current[`right:${right}`]?.focus();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -131,33 +152,25 @@ export function SessionDrawers({
   }, []);
 
   function toggleLeft(tabId: string): void {
-    if (openSide === 'left' && leftTab === tabId) {
-      close();
-      return;
-    }
-    setLeftTab(tabId);
     setStatsTokenId(null);
-    setOpenSide('left');
-  }
-
-  function changeLeftTab(tabId: string): void {
-    if (tabId !== leftTab) setStatsTokenId(null);
-    setLeftTab(tabId);
+    setLeftId((current) => (current === tabId ? null : tabId));
   }
 
   function toggleRight(tabId: string): void {
-    if (openSide === 'right' && rightTab === tabId) {
-      close();
-      return;
-    }
-    setStatsTokenId(null);
-    setRightTab(tabId);
-    setOpenSide('right');
+    setRightId((current) => (current === tabId ? null : tabId));
   }
 
-  function close(): void {
-    setOpenSide(null);
+  function closeLeft(): void {
+    const current = leftId;
+    setLeftId(null);
     setStatsTokenId(null);
+    if (current) navButtons.current[`left:${current}`]?.focus();
+  }
+
+  function closeRight(): void {
+    const current = rightId;
+    setRightId(null);
+    if (current) navButtons.current[`right:${current}`]?.focus();
   }
 
   function beginRename(token: TokenInfo): void {
@@ -181,16 +194,21 @@ export function SessionDrawers({
     setDraftName('');
   }
 
-  const activeLeftLabel = leftTabs.find((tab) => tab.id === leftTab)?.label ?? '';
+  const leftLabel = leftTabs.find((tab) => tab.id === leftId)?.label ?? '';
+  const rightLabel =
+    RIGHT_TABS.find((tab) => tab.id === rightId)?.label ?? 'Notes';
   const hasGrid = Boolean(room.scene.grid);
 
   const gmTokens = room.tokens.filter((token) => token.kind !== 'player');
   const playerTokens = room.tokens.filter((token) => token.kind === 'player');
+  const placedVisibleTokens = room.tokens.filter(
+    (token) => !token.hidden && token.cell,
+  );
   const statsToken = statsTokenId
     ? room.tokens.find((token) => token.id === statsTokenId) ?? null
     : null;
-  const rightTitle = rightTab === 'stats' ? 'Stats' : 'Notes';
-  const self = room.participants.find((participant) => participant.id === selfId) ?? null;
+  const self =
+    room.participants.find((participant) => participant.id === selfId) ?? null;
   const selfToken =
     room.tokens.find(
       (token) => token.kind === 'player' && token.ownerId === selfId,
@@ -198,66 +216,60 @@ export function SessionDrawers({
 
   return (
     <>
-      {openSide !== 'left' ? (
-        <nav className="drawer-rail drawer-rail-left" aria-label="Left session drawers">
-          {leftTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className="drawer-rail-tab"
-              type="button"
-              aria-expanded={false}
-              onClick={() => toggleLeft(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
+      <nav className="session-nav session-nav-left" aria-label="Session tools">
+        {leftTabs.map((tab) => (
+          <SessionNavButton
+            key={tab.id}
+            label={tab.label}
+            icon={tab.icon}
+            active={leftId === tab.id}
+            side="left"
+            controlsId="session-drawer-left"
+            buttonRef={(node) => {
+              navButtons.current[`left:${tab.id}`] = node;
+            }}
+            onClick={() => toggleLeft(tab.id)}
+          />
+        ))}
+      </nav>
 
-      {openSide !== 'right' ? (
-        <nav className="drawer-rail drawer-rail-right" aria-label="Right session drawers">
-          {rightTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className="drawer-rail-tab"
-              type="button"
-              aria-expanded={false}
-              onClick={() => toggleRight(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
+      <nav className="session-nav session-nav-right" aria-label="Session notes">
+        {RIGHT_TABS.map((tab) => (
+          <SessionNavButton
+            key={tab.id}
+            label={tab.label}
+            icon={tab.icon}
+            active={rightId === tab.id}
+            side="right"
+            controlsId="session-drawer-right"
+            buttonRef={(node) => {
+              navButtons.current[`right:${tab.id}`] = node;
+            }}
+            onClick={() => toggleRight(tab.id)}
+          />
+        ))}
+      </nav>
 
-      {openSide ? <div className="drawer-scrim" onClick={close} role="presentation" /> : null}
-
-      {openSide === 'left' ? (
-        <aside className="session-drawer session-drawer-left" aria-label={activeLeftLabel}>
+      {leftId ? (
+        <aside
+          id="session-drawer-left"
+          className="session-drawer session-drawer-left"
+          aria-label={leftLabel}
+        >
           <div className="drawer-head">
-            <strong className="drawer-title">{activeLeftLabel}</strong>
-            <button className="icon-button" type="button" onClick={close} aria-label="Close drawer">
+            <strong className="drawer-title">{leftLabel}</strong>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={closeLeft}
+              aria-label="Close drawer"
+            >
               ×
             </button>
           </div>
 
-          {leftTabs.length > 1 ? (
-            <div className="drawer-tabbar">
-              {leftTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={leftTab === tab.id ? 'drawer-tab active' : 'drawer-tab'}
-                  type="button"
-                  onClick={() => changeLeftTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <div className="drawer-body">
-            {leftTab === 'scene' && role === 'gm' ? (
+            {leftId === 'scene' && role === 'gm' ? (
               <div className="drawer-section">
                 <p className="muted small">Switch the live scene for everyone.</p>
                 <div className="drawer-scene-list">
@@ -287,7 +299,37 @@ export function SessionDrawers({
               </div>
             ) : null}
 
-            {leftTab === 'token' && role === 'gm' ? (
+            {leftId === 'scene' && role === 'player' ? (
+              <div className="drawer-section">
+                <p className="muted small">
+                  Click a placed token to ping it on your scene.
+                </p>
+
+                {placedVisibleTokens.length === 0 ? (
+                  <p className="muted small">
+                    No placed visible tokens on this scene.
+                  </p>
+                ) : (
+                  <div className="player-token-list">
+                    {placedVisibleTokens.map((token) => (
+                      <button
+                        key={token.id}
+                        className="player-token-row"
+                        type="button"
+                        aria-label={`Ping ${token.label}`}
+                        title={`Ping ${token.label}`}
+                        onClick={() => onPingToken?.(token)}
+                      >
+                        <DrawerCoin token={token} />
+                        <span>{token.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {leftId === 'token' && role === 'gm' ? (
               <div className="drawer-section">
                 <p className="muted small">
                   Add a red enemy or green NPC token. Each click creates an unplaced copy
@@ -322,7 +364,10 @@ export function SessionDrawers({
                       setTokenName('');
                     }}
                   >
-                    <span className="drawer-token-shape drawer-token-shape-large" aria-hidden="true">
+                    <span
+                      className="drawer-token-shape drawer-token-shape-large"
+                      aria-hidden="true"
+                    >
                       <TokenGlyph
                         shape={gmTokenShape('enemy')}
                         color={GM_TOKEN_COLORS.enemy}
@@ -344,7 +389,10 @@ export function SessionDrawers({
                       setTokenName('');
                     }}
                   >
-                    <span className="drawer-token-shape drawer-token-shape-large" aria-hidden="true">
+                    <span
+                      className="drawer-token-shape drawer-token-shape-large"
+                      aria-hidden="true"
+                    >
                       <TokenGlyph
                         shape={gmTokenShape('npc')}
                         color={GM_TOKEN_COLORS.npc}
@@ -390,10 +438,12 @@ export function SessionDrawers({
                           disabled={!hasGrid}
                           title={token.cell ? 'Move token' : 'Place token'}
                           aria-label={
-                            token.cell ? `Move ${token.label}` : `Place ${token.label}`
+                            token.cell
+                              ? `Move ${token.label}`
+                              : `Place ${token.label}`
                           }
                           onClick={() => {
-                            close();
+                            closeLeft();
                             onStartPlacement(token.id);
                           }}
                         >
@@ -490,7 +540,7 @@ export function SessionDrawers({
                                 : `Place ${token.label}`
                             }
                             onClick={() => {
-                              close();
+                              closeLeft();
                               onStartPlacement(token.id);
                             }}
                           >
@@ -514,10 +564,21 @@ export function SessionDrawers({
               </div>
             ) : null}
 
-            {leftTab === 'character' && role === 'player' ? (
+            {leftId === 'requests' && role === 'gm' ? (
+              <div className="drawer-empty">
+                <span className="eyebrow">Requests</span>
+                <p className="muted">
+                  Movement requests and approvals will appear here in a later pass.
+                </p>
+              </div>
+            ) : null}
+
+            {leftId === 'character' && role === 'player' ? (
               <div className="drawer-section">
                 <span className="eyebrow">Session name</span>
-                <h3 className="drawer-character-name">{self?.name ?? 'Your character'}</h3>
+                <h3 className="drawer-character-name">
+                  {self?.name ?? 'Your character'}
+                </h3>
                 <p className="muted small">{room.title}</p>
 
                 {selfToken ? (
@@ -540,7 +601,7 @@ export function SessionDrawers({
                           : `Place ${selfToken.label}`
                       }
                       onClick={() => {
-                        close();
+                        closeLeft();
                         onStartPlacement(selfToken.id);
                       }}
                     >
@@ -569,14 +630,23 @@ export function SessionDrawers({
                     drawer.
                   </p>
                 )}
+
+                <div className="drawer-subhead">
+                  <span className="header-label">Stats</span>
+                </div>
+                <StatsBody
+                  token={selfToken}
+                  fallbackName={self?.name ?? 'Your character'}
+                />
               </div>
             ) : null}
 
-            {leftTab === 'requests' && role === 'gm' ? (
+            {leftId === 'domainCards' && role === 'player' ? (
               <div className="drawer-empty">
-                <span className="eyebrow">Requests</span>
+                <span className="eyebrow">Domain cards</span>
                 <p className="muted">
-                  Movement requests and approvals will appear here in a later pass.
+                  Daggerheart domain cards will appear here when the character system
+                  is implemented.
                 </p>
               </div>
             ) : null}
@@ -584,7 +654,7 @@ export function SessionDrawers({
         </aside>
       ) : null}
 
-      {openSide === 'left' && leftTab === 'token' && statsToken ? (
+      {leftId === 'token' && role === 'gm' && statsToken ? (
         <aside className="session-stats-drawer" aria-label="Token stats">
           <div className="drawer-head">
             <strong className="drawer-title">Stats</strong>
@@ -603,45 +673,31 @@ export function SessionDrawers({
         </aside>
       ) : null}
 
-      {openSide === 'right' ? (
-        <aside className="session-drawer session-drawer-right" aria-label={rightTitle}>
+      {rightId ? (
+        <aside
+          id="session-drawer-right"
+          className="session-drawer session-drawer-right"
+          aria-label={rightLabel}
+        >
           <div className="drawer-head">
-            <strong className="drawer-title">{rightTitle}</strong>
-            <button className="icon-button" type="button" onClick={close} aria-label="Close drawer">
+            <strong className="drawer-title">{rightLabel}</strong>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={closeRight}
+              aria-label="Close drawer"
+            >
               ×
             </button>
           </div>
-
-          {rightTabs.length > 1 ? (
-            <div className="drawer-tabbar">
-              {rightTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={rightTab === tab.id ? 'drawer-tab active' : 'drawer-tab'}
-                  type="button"
-                  onClick={() => setRightTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <div className="drawer-body">
-            {rightTab === 'stats' ? (
-              <StatsBody
-                token={selfToken}
-                fallbackName={self?.name ?? 'Your character'}
-              />
-            ) : (
-              <div className="drawer-empty">
-                <span className="eyebrow">Notes</span>
-                <p className="muted">
-                  Session notes will live here in a later pass. Voice and chat stay in
-                  Discord.
-                </p>
-              </div>
-            )}
+            <div className="drawer-empty">
+              <span className="eyebrow">Notes</span>
+              <p className="muted">
+                Session notes will live here in a later pass. Voice and chat stay in
+                Discord.
+              </p>
+            </div>
           </div>
         </aside>
       ) : null}

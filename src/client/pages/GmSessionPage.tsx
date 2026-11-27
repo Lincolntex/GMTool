@@ -85,7 +85,7 @@ export function GmSessionPage() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell session-shell">
       <header className="topbar">
         <Link to="/" className="brand">
           GMTool <span>alpha</span>
@@ -344,33 +344,35 @@ function SessionPanel({ gmRoom, onEnded }: { gmRoom: GmRoom; onEnded: () => void
 
       {error || localError ? <div className="notice error">{localError || error}</div> : null}
 
-      <SessionDrawers
-        role="gm"
-        room={room}
-        selfId={selfId}
-        placingTokenId={placingTokenId}
-        sceneBusy={sceneBusy}
-        onStartPlacement={setPlacingTokenId}
-        onCreateToken={(kind, name) => void createToken(kind, name)}
-        onRenameToken={(tokenId, name) => void renameToken(tokenId, name)}
-        onDeleteToken={(tokenId) => void deleteToken(tokenId)}
-        onToggleHidden={(tokenId, hidden) => void toggleTokenHidden(tokenId, hidden)}
-        onSelectScene={(index) => void changeScene({ index })}
-      />
+      <div className="scene-workspace">
+        <div className="scene-focus">
+          <SceneStage
+            room={room}
+            socket={socket}
+            pointers={pointers}
+            pings={pings}
+            role="gm"
+            selfId={selfId}
+            placingTokenId={placingTokenId}
+            onStartPlacement={setPlacingTokenId}
+            onCancelPlacement={() => setPlacingTokenId(null)}
+            onPlaceToken={(tokenId, col, row) => void placeToken(tokenId, col, row)}
+            onUnplaceToken={(tokenId) => void unplaceToken(tokenId)}
+          />
+        </div>
 
-      <div className="scene-focus">
-        <SceneStage
-          room={room}
-          socket={socket}
-          pointers={pointers}
-          pings={pings}
+        <SessionDrawers
           role="gm"
+          room={room}
           selfId={selfId}
           placingTokenId={placingTokenId}
+          sceneBusy={sceneBusy}
           onStartPlacement={setPlacingTokenId}
-          onCancelPlacement={() => setPlacingTokenId(null)}
-          onPlaceToken={(tokenId, col, row) => void placeToken(tokenId, col, row)}
-          onUnplaceToken={(tokenId) => void unplaceToken(tokenId)}
+          onCreateToken={(kind, name) => void createToken(kind, name)}
+          onRenameToken={(tokenId, name) => void renameToken(tokenId, name)}
+          onDeleteToken={(tokenId) => void deleteToken(tokenId)}
+          onToggleHidden={(tokenId, hidden) => void toggleTokenHidden(tokenId, hidden)}
+          onSelectScene={(index) => void changeScene({ index })}
         />
       </div>
     </div>

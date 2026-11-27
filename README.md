@@ -10,7 +10,8 @@ The current shell includes:
 - Copy, Edit, Delete, and Launch actions for each campaign.
 - A live session with a scene grid, tokens, hidden-token controls, pointers, presence, and a
   join link/PIN.
-- Slide-out session drawers for scenes, tokens, characters, stats placeholders, and notes.
+- Icon side rails with hover labels and overlay drawers for scenes, tokens, characters, stats
+  placeholders, domain cards, and notes.
 
 Campaigns, scenes, tokens, live rooms, and participants persist in PostgreSQL. Pointers, socket
 connections, and presence remain ephemeral.
@@ -128,8 +129,8 @@ The Express server serves the built client and the API from one process.
 10. Click **Save Campaign**. The campaign appears on the dashboard.
 11. Open the vertical ellipsis menu and choose **Launch**. Pre-placed GM tokens appear in the
     live scene.
-12. In the live session, use the forward/back arrows under **Scenes** or the **Scene** drawer
-    to move through the campaign.
+12. In the live session, use the forward/back arrows under **Scenes** or the **Scenes** icon
+    drawer to move through the campaign.
 13. Toggle **Grid** in the GM header. The setting is shared with every player.
 14. Open the **Token** drawer. **Active Tokens** shows placed and unplaced GM tokens. Only the
     marker starts placement. Click the name to rename, use **Hide / Show**, **Stats**, or
@@ -141,14 +142,16 @@ The Express server serves the built client and the API from one process.
 17. Click **Join session**, then **Copy link + PIN**.
 18. Open the join link in another browser window, incognito window, or a second browser.
 19. Enter the PIN, a display name, a pointer color, and a token shape.
-20. Open the **Character** drawer and click the token marker to place your token. On the right,
-    **Stats** opens your stats drawer; **Notes** remains available.
-21. Confirm both windows show the same scene, grid, and visible tokens.
-22. Hide a GM token. The player view no longer shows it. Move the player token onto its square,
+20. Open the **Character** drawer and click the token marker to place your token. Character stats
+    are shown inside the Character drawer. **Notes** remains available on the right.
+21. Open the player **Scene** drawer to see placed visible tokens. Click a token row to ping it
+    locally; other clients do not receive that ping.
+22. Confirm both windows show the same scene, grid, and visible tokens.
+23. Hide a GM token. The player view no longer shows it. Move the player token onto its square,
     then show the token again. The player token is pushed to a nearby free square.
-23. Hold **Shift** and click the scene in one window. The other window should show your ping in
+24. Hold **Shift** and click the scene in one window. The other window should show your ping in
     your chosen shape.
-24. Hold **Shift** and drag to point continuously. A normal click on empty scene space does
+25. Hold **Shift** and drag to point continuously. A normal click on empty scene space does
     nothing. This is intentional.
 
 To test more players, repeat the join flow in more browser windows. Each participant needs a
@@ -192,7 +195,7 @@ actions.
 - Campaign copy, edit, delete, and launch.
 - One active live session at a time.
 - Live session uses the campaign's scenes with forward/back scene arrows in the GM header.
-- Scene picker in the GM **Scene** drawer.
+- Scene picker in the GM **Scenes** drawer.
 - Shared grid visibility toggle in the GM header, off by default.
 - A faint local-only grid appears while a player or GM is placing a token with the shared grid
   hidden.
@@ -211,17 +214,20 @@ actions.
 - The selected color and shape appear in the session table strip and on the player token.
 - Player pings use the player's selected shape and color.
 - The GM pointer, GM ping, and GM table badge are silver downward triangles.
-- The Character drawer shows the player name and darkens the token icon while that token is on
-  the scene. Only the token marker starts player placement.
-- The player's right side has **Stats** and **Notes** drawers. The player sees only their own
-  stats; the GM can view all player stats.
+- The Character drawer shows the player name, token placement, and character stats placeholder.
+  Only the token marker starts player placement.
+- The player has a **Scene** drawer listing placed visible tokens. Clicking a token row pings it
+  locally for that player only.
+- The player left rail is Scene, Character, and Domain cards. Domain cards is a placeholder.
+- Notes is the only player right-side drawer and uses the same icon as the GM Notes drawer.
 - Click-to-place movement mode with a transparent ghost token and full-square snapping.
 - Occupied squares are rejected by the client and the server, except a player token may share a
   square with an invisible hidden GM token.
 - `Backspace`/`Delete` or the token **×** returns a token to its drawer.
 - Players can control only their own token; the GM can control every token.
 - Per-scene token placement. Returning to a scene restores its tokens.
-- Session drawers: GM Scene/Token/Requests and Notes; player Character, Stats, and Notes.
+- Session nav: GM Scenes/Token/Requests and Notes; player Scene/Character/Domain cards and Notes.
+  The rails are fixed app borders, and drawers overlay the scene map without resizing it.
 - Join link plus 6-digit PIN.
 - Player display name, pointer color, and independent token shape.
 - Live participant strip with color-and-shape markers and online/offline state.
@@ -264,8 +270,8 @@ server/
 src/
   client/
     components/       SceneStage, ScenePreview, GridOverlay, GridEditor,
-                      CampaignTokenEditor, SessionDrawers, ShapeIcon,
-                      ParticipantStrip
+                      CampaignTokenEditor, SessionDrawers, SessionNavButton,
+                      ShapeIcon, ParticipantStrip
     hooks/            useRoomSocket
     lib/              API, sessionStorage, and token helpers
     pages/            Dashboard, campaign builder, GM session, join, player session

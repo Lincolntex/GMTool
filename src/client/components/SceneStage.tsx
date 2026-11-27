@@ -21,16 +21,26 @@ import type {
   Role,
   TokenCell,
   TokenInfo,
+  TokenShape,
 } from '../../shared/types';
 import { tokenInitials, tokenShapeForToken } from '../lib/tokens';
 import { GridOverlay } from './GridOverlay';
 import { ShapeIcon, TokenGlyph } from './ShapeIcon';
+
+export interface LocalTokenPing {
+  id: string;
+  tokenId: string;
+  cell: TokenCell;
+  color: string;
+  shape: TokenShape;
+}
 
 interface SceneStageProps {
   room: PublicRoom;
   socket: Socket | null;
   pointers: Record<string, PointerInfo>;
   pings: PingInfo[];
+  localPing?: LocalTokenPing | null;
   role: Role;
   selfId: string | null;
   placingTokenId: string | null;
@@ -58,6 +68,7 @@ export function SceneStage({
   socket,
   pointers,
   pings,
+  localPing = null,
   role,
   selfId,
   placingTokenId,
@@ -490,6 +501,28 @@ export function SceneStage({
                 </span>
               ),
             )}
+
+            {localPing && geometry ? (
+              <span
+                key={localPing.id}
+                className="ping ping-shape ping-local"
+                style={
+                  {
+                    left: `${cellCenter(geometry, localPing.cell).x * 100}%`,
+                    top: `${cellCenter(geometry, localPing.cell).y * 100}%`,
+                    '--pointer-color': localPing.color,
+                  } as CSSProperties
+                }
+              >
+                <ShapeIcon
+                  shape={localPing.shape}
+                  color={localPing.color}
+                  filled={false}
+                  strokeWidth={3}
+                  className="ping-shape-icon"
+                />
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
