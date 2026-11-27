@@ -8,9 +8,9 @@ Replace the current text-tab session drawers with persistent, full-height icon r
 
 The app title and session heading sit between the rails and begin at the same vertical level as the rails. The header remains outside the drawer workspace, so it stays visible while drawers are open.
 
-The rails never collapse. Clicking an icon expands its drawer inward and pushes the scene map aside. Clicking the active icon collapses that drawer and restores the scene width.
+The rails never collapse. Clicking an icon slides its drawer over the scene map. The scene map keeps its existing size and position; it is not pushed or shrunk.
 
-Both the left and right drawers can be open at the same time. This supports lore-heavy sections where the scene is less important. Opening or closing one side does not affect the other side.
+Both the left and right drawers can be open at the same time. This supports lore-heavy sections where the scene is less important. Opening both covers more of the scene, but the scene remains the same size underneath.
 
 The GM keeps the current scene, token, request, and notes tools, but the navigation becomes icon-first. The player gains a placed-token list and a local-only token ping.
 
@@ -40,7 +40,9 @@ Relevant files:
 
 The current rails are text buttons. Drawers overlay the scene and the rail disappears while a drawer is open.
 
-The new layout changes that relationship: the rails become the app borders, the drawer expands inward, and the scene shifts to make room instead of being covered.
+The new layout changes the navigation, not the scene size: the rails become the app borders, the drawers overlay the scene map, and the scene keeps its current dimensions.
+
+The title and session heading move to the same top level as the full-height rails.
 
 ---
 
@@ -59,6 +61,7 @@ Use a **persistent icon rail** on each side of the session:
 - Clicking another icon on the same side swaps that side's drawer content.
 - The left and right drawers are independent. Both can be open at the same time.
 - Opening or closing one side never changes the other side's open state.
+- Drawers overlay the scene map; they do not resize or reposition it.
 - Hovering or focusing an icon shows its tab name in a tooltip.
 - The drawer title also shows the full tab name.
 
@@ -66,23 +69,17 @@ Use a **persistent icon rail** on each side of the session:
 
 The app title and session heading span the central area between the full-height rails and begin at the same vertical level as the rails.
 
-The header remains outside the drawer workspace. This keeps the campaign name, scene name, scene subtitle, grid control, join button, end button, and table strip visible while either or both drawers are open.
+The header remains outside the drawer overlay area. This keeps the campaign name, scene name, scene subtitle, grid control, join button, end button, and table strip visible while either or both drawers are open.
 
 ```text
 ┌──────┬──────────────────────────────────────────────┬──────┐
 │ rail │ app title / session heading                  │ rail │
 │      ├──────────────────────────────────────────────┤      │
-│      │ workspace: drawer | scene map | drawer       │      │
+│      │ scene map with drawers overlaying it         │      │
 └──────┴──────────────────────────────────────────────┴──────┘
 ```
 
-Within the workspace:
-
-```text
-left drawer | scene map | right drawer
-```
-
-When the left drawer opens, the scene map shifts right. When the right drawer opens, the scene map shifts left. When both are open, the scene map shrinks from both sides. When both are closed, the scene map uses the full width between the rails.
+The scene map occupies the full width between the rails. The drawers sit above the scene map at the left and right edges.
 
 ```text
 both closed:
@@ -92,20 +89,21 @@ both closed:
 
 both open:
 ┌──────┬──────────────┬────────────────┬──────────────┬──────┐
-│ rail │ left drawer  │    scene map   │ right drawer │ rail │
+│ rail │ left drawer  │ scene visible  │ right drawer │ rail │
+│      │ overlaying   │ underneath     │ overlaying   │      │
 └──────┴──────────────┴────────────────┴──────────────┴──────┘
 ```
 
 - Rail width: `56px` desktop.
 - Icon button: `40px × 40px`.
 - Drawer width: `320px` to `360px` each.
-- Drawer width transitions from `0` to its target width.
-- The scene map flexes and shrinks inside the workspace.
-- The GM stats sub-panel opens immediately to the right of the left drawer, within the workspace.
-- There is no scrim. The rails and drawers are part of the workspace layout, not overlays.
-- The header is never covered or squeezed by the rails or drawers.
-- On narrow screens, cap the drawer widths so the scene map retains a usable minimum. If the viewport is too narrow, a drawer may use the overlay fallback **over the scene map only**. It must never cover the title or session heading.
-- The overlay fallback is clipped to the workspace below the header.
+- Drawers slide in over the scene map.
+- The scene map keeps its size and position; it does not flex, shrink, or shift.
+- The GM stats sub-panel opens over the scene map beside the left drawer.
+- There is no scrim. The drawers themselves are the only overlay.
+- The title and session heading are never covered by the rails or drawers.
+- On narrow screens, cap the drawer widths so the uncovered part of the scene remains usable. Do not move the scene.
+- Drawers are clipped to the workspace below the header.
 
 ---
 
@@ -248,7 +246,7 @@ The existing smaller stats panel remains. It opens beside the left drawer and ac
 left rail 56px + token drawer width
 ```
 
-It may overlay the shifted scene map, but it must not cover the left rail or the session heading. When both drawers are open, clamp it to the remaining scene-map area so it does not cover the right drawer. It stays below the icon rail tooltips and above the board content.
+It overlays the scene map beside the left drawer, but it must not cover the left rail or the session heading. When both drawers are open, clamp it so it does not cover the right drawer. It stays below the icon rail tooltips and above the board content.
 
 ---
 
@@ -465,16 +463,14 @@ const [rightTabId, setRightTabId] = useState<string | null>(null);
 
 Both may be non-null at the same time. Clicking a nav icon only changes that side. Clicking the active icon sets that side's ID to `null`.
 
-The drawer state also determines the session workspace width:
+The drawer state only controls overlay visibility. It does not change the scene map's size or position.
 
 ```text
-no drawer     -> left 0,      right 0
-left drawer   -> left 340px,  right 0
-right drawer  -> left 0,      right 340px
-both drawers  -> left 340px,  right 340px
+no drawer     -> scene fully visible
+left drawer   -> left portion of scene covered
+right drawer  -> right portion of scene covered
+both drawers  -> both side portions covered; scene size unchanged
 ```
-
-The scene map takes the remaining width. Drawer widths may be capped at narrower viewport sizes.
 
 New props:
 
@@ -491,7 +487,7 @@ Only the player session passes it.
 - Pass `localPing` to `SceneStage`.
 - Clear local ping when `room.activeSceneIndex` changes.
 - Clear local ping if the pinged token is removed or moves.
-- Pass the open drawer side to the session layout container if the layout is controlled there.
+- No scene-size state is needed for drawer visibility.
 
 ### `SceneStage.tsx`
 
@@ -537,16 +533,17 @@ Update:
 
 - Make the rails full height at the viewport edges.
 - Start the app title and session heading between the rails at the same vertical level as the rail tops.
-- Keep the header outside the drawer workspace so it is never covered.
+- Keep the header outside the drawer overlay area so it is never covered.
 - Remove text-tab-specific styles that are no longer used.
-- Remove the drawer scrim and overlay positioning.
-- Make the workspace a horizontal flex/grid layout: left drawer, scene map, right drawer, framed by the rails.
+- Keep the scene map at its current size and position.
+- Position drawer panes absolutely inside the workspace below the header.
+- Left drawer: offset from the left rail; right drawer: offset from the right rail.
 - Allow both drawer panes to be open at once.
-- Animate each drawer width from `0` to its open width independently.
-- Let the scene map flex/shrink as either or both drawers open.
+- Animate each drawer with transform/opacity, not width.
+- Do not use flex/grid width changes that shrink the scene.
 - Adjust the GM stats panel offset to include the fixed rail and open token drawer.
 - Add responsive rail width and drawer width rules.
-- Clip the narrow-screen overlay fallback to the workspace below the header.
+- Clip the drawers to the workspace below the header.
 - Respect `prefers-reduced-motion` for the drawer and ping animations.
 - Hide tooltips on coarse-pointer devices if they interfere with touch, but keep `aria-label`.
 
@@ -595,13 +592,14 @@ Suggested visual treatment:
 - Switching icons swaps content without closing the drawer.
 - Opening the right drawer does not close the left drawer, and vice versa.
 - Both drawers can be open at the same time.
-- Left drawer expansion shifts the scene map right; closing it restores the scene width.
-- Right drawer expansion shifts the scene map left; closing it restores the scene width.
-- With both drawers open, the scene map shrinks from both sides but remains usable.
+- Left drawer overlays the left side of the scene map.
+- Right drawer overlays the right side of the scene map.
+- The scene map keeps the same size and position with either or both drawers open.
+- With both drawers open, more of the scene is covered, but the scene size is unchanged.
 - The app title and session heading stay visible at the top of the rail frame while drawers are open.
 - The campaign name, scene name, controls, and table strip are never covered by the drawer.
-- No scrim or overlay covers the scene map on desktop.
-- On narrow screens, the overlay fallback stays below the header.
+- No full-screen scrim is added; the drawer is the only overlay.
+- Drawers stay below the header on all viewport sizes.
 - GM stats sub-panel opens beside the token drawer and is not clipped by the rail.
 - With both drawers open, the stats panel does not cover the right drawer.
 - Existing token create/place/rename/hide/stats/delete still work.
@@ -634,21 +632,22 @@ Suggested visual treatment:
 - Verify the session heading remains visible and unobstructed at all drawer states.
 - Keyboard-only navigation check.
 - Verify the scene remains reachable when a drawer is closed.
-- Verify drawer width transitions respect `prefers-reduced-motion`.
+- Verify drawer overlay animations respect `prefers-reduced-motion`.
 - Verify icon silhouettes are legible at 22px without relying on filled icons.
 
 ---
 
 ## 16. Rollout sequence
 
-### Phase 1 — Icon foundation and push layout
+### Phase 1 — Icon foundation and overlay layout
 
 - Add `@phosphor-icons/react`.
 - Create `SessionNavButton`.
-- Add fixed rail and tooltip CSS.
-- Add the session workspace below the full-width session heading.
-- Add collapsible drawer panes that push the scene map.
-- Verify the scene map pushes right and left as drawers open without moving or covering the heading.
+- Add fixed full-height rail and tooltip CSS.
+- Add the session workspace below the session heading.
+- Add drawer panes that overlay the scene map.
+- Verify the scene map keeps its size and position as drawers open.
+- Verify the title and heading stay visible above the overlay.
 - Replace the text rails without changing drawer content.
 
 ### Phase 2 — GM navigation
@@ -656,7 +655,7 @@ Suggested visual treatment:
 - Wire GM Scenes, Token, Requests, and Notes.
 - Verify the stats sub-panel offset.
 - Confirm existing token actions are unchanged.
-- Verify independent left/right drawer behavior, both-open layout, and scene width restoration.
+- Verify independent left/right drawers, both-open overlay behavior, and unchanged scene size.
 
 ### Phase 3 — Player navigation
 
@@ -690,11 +689,12 @@ The overhaul is complete when:
 - The rails are fixed to the screen edges and act as the app borders.
 - The rails never collapse.
 - The app title and session heading sit between the full-height rails at the same top level.
-- Clicking a nav icon expands its drawer and pushes the scene map aside.
-- Closing the drawer restores the scene map width.
+- Clicking a nav icon slides its drawer over the scene map.
+- The scene map keeps the same size and position whether drawers are open or closed.
 - Both drawers can be open at the same time.
-- No scrim or overlay covers the scene map on desktop.
-- The narrow-screen overlay fallback never covers the title or session heading.
+- Both drawers open covers more of the scene map, but does not resize it.
+- The title and session heading are never covered.
+- No full-screen scrim is added.
 - No text tab bar remains in the session drawers.
 - GM icons match: picture, triangle, exclamation, notebook.
 - Player icons match: picture, player, playing cards, notebook.
@@ -726,11 +726,11 @@ The overhaul is complete when:
 | Stats tab | Removed; stats moved into Character |
 | Notes icon | Shared `Notebook` icon |
 | Rails | Fixed borders; never collapse |
-| Drawers | Expand inward and push the scene map |
+| Drawers | Overlay the scene map; no resize or reposition |
 | Open drawers | Independent; both may be open |
 | Header | Between the rails at the same top level; never covered |
-| Scrim | Removed; layout pushes instead of overlaying |
-| Narrow overlay | Clipped to the workspace below the header |
+| Scene size | Unchanged when drawers open or close |
+| Scrim | No full-screen scrim |
 | Hidden-token privacy | Client-side filtering accepted for personal use |
 | Server changes | None |
 | Database changes | None |
@@ -757,17 +757,18 @@ The overhaul is complete when:
 4. **Layout risk**
    - Make the rails full-height fixed borders.
    - Start the app title and session heading between the rails at the same top level.
-   - Keep the header outside the drawer workspace so it is never covered.
-   - Expand each drawer inward and push the scene map.
+   - Keep the header outside the drawer overlay area so it is never covered.
+   - Overlay each drawer on top of the scene map; do not resize or reposition the scene.
    - Use CSS variables for rail width and drawer width.
    - Test left-only, right-only, both-open, and both-closed states.
-   - Test scene resizing, GM stats panel offset, and narrow viewports.
-   - If the narrow-screen overlay fallback is used, clip it below the header.
+   - Test GM stats panel offset and narrow viewports.
+   - Clip drawers to the workspace below the header.
 
 5. **Collapse behavior**
    - The rails themselves do not collapse.
    - The drawer is the collapsible element.
-   - Clicking the active icon collapses the drawer and restores the scene width.
+   - Clicking the active icon collapses the drawer and uncovers that side of the scene.
+   - The scene map size and position do not change.
 
 6. **Active tokens**
    - Only display placed, visible tokens.
@@ -803,18 +804,20 @@ The overhaul is complete when:
 
 12. **Testing**
     - Test with a GM tab and at least one player tab.
-    - Verify local ping isolation, hidden-token filtering, drawer push behavior, and keyboard navigation.
+    - Verify local ping isolation, hidden-token filtering, drawer overlay behavior, and keyboard navigation.
     - Test both-open and both-closed drawer states.
+    - Confirm the scene map size and position do not change.
     - Keep manual testing focused on the same interaction areas during review.
 
 13. **Both drawers open**
     - Both sides may be open at the same time.
-    - The scene map will become small during lore-heavy sections. This is an accepted tradeoff.
-    - Cap drawer widths on narrower viewports.
-    - Adjust drawer widths or stacking later if the table finds the scene too cramped.
+    - More of the scene map is covered during lore-heavy sections. This is an accepted tradeoff.
+    - The scene map keeps its existing size underneath.
+    - Cap drawer widths on narrower viewports so some of the scene remains visible.
+    - Adjust drawer widths or layering later if the table finds the scene too obscured.
 
 ### Resolved decision
 
-The side rails are full-height fixed app borders. They do not collapse. The app title and session heading sit between the rails at the same top level and are never covered or squeezed by drawers.
+The side rails are full-height fixed app borders. They do not collapse. The app title and session heading sit between the rails at the same top level and are never covered by drawers.
 
-The drawers are the collapsible elements and can be open independently. Both may be open at the same time. Each open drawer pushes the scene map inward from its side. On narrow screens, the overlay fallback is clipped to the scene map and must not cover the title or heading.
+The drawers are the collapsible elements and can be open independently. Both may be open at the same time. Each open drawer overlays the scene map from its side. The scene map keeps its existing size and position. With both open, more of the scene is covered, but the scene itself does not resize or move. Drawers stay below the title and heading on all viewport sizes.
