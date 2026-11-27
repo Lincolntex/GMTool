@@ -326,6 +326,11 @@ scene regardless of window size or image aspect ratio.
   shared grid is hidden.
 - Campaign scenes own pre-launch GM tokens. The builder places them in the same preview geometry,
   saves them with the scene, and the launch copies them into the live room.
+- Scenes can be reordered from the campaign builder with the **Order** arrows. Scene order is
+  persisted through the scene `position` column and becomes the live scene order at launch.
+- Placed campaign tokens have **Hide / Show** and **Stats** actions in the builder. Hidden tokens
+  remain visible to the GM with a muted marker, and their hidden state is saved and copied into
+  the live room.
 - Tokens are stored per scene. Player tokens return to the drawer when entering a new scene, and
   the previous scene keeps its placements.
 - Players receive exactly one token, using the color and shape chosen on the join screen.
@@ -482,6 +487,9 @@ Do not expose this alpha to the internet.
   - Player placement on a hidden token's square
   - Reveal pushing the player token to the nearest free adjacent square
   - Server and client no longer showing hidden tokens to players
+  - Campaign scene reordering with persisted order
+  - Campaign builder Hide/Show and Stats actions for placed tokens
+  - Hidden campaign tokens shown muted in the builder preview
 
 ---
 
@@ -495,4 +503,4 @@ The next milestone is **movement rules and GM control**:
 - Optional drag-and-drop as a shortcut, reusing server validation.
 - A visible indication when a move is requested or approved.
 
-Persistence remains deferred until after tokens and movement settle.
+PostgreSQL persistence is already in place for campaigns, rooms, tokens, and participants.

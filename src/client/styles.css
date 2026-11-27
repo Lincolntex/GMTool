@@ -456,6 +456,36 @@ p {
   color: var(--accent-strong);
 }
 
+.scene-order-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.scene-order-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.scene-order-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.scene-order-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 .builder-actions {
   display: flex;
   flex-wrap: wrap;
@@ -598,6 +628,26 @@ p {
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+}
+
+.campaign-token-stats-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.campaign-token-stats-body > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.campaign-token-stats-body strong {
+  font-size: 0.95rem;
+}
+
+.campaign-token-stats-body p {
+  margin: 0;
 }
 
 .grid-editor-controls input[type="range"] {
