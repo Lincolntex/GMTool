@@ -151,6 +151,29 @@ export function SessionDrawers({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    const topbar = document.querySelector<HTMLElement>('.topbar');
+    if (!topbar) return;
+    const bar = topbar;
+    const root = document.documentElement;
+
+    function syncTopOffset(): void {
+      root.style.setProperty(
+        '--session-top-offset',
+        `${Math.ceil(bar.getBoundingClientRect().height)}px`,
+      );
+    }
+
+    syncTopOffset();
+    const observer = new ResizeObserver(syncTopOffset);
+    observer.observe(bar);
+
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--session-top-offset');
+    };
+  }, []);
+
   function toggleLeft(tabId: string): void {
     setStatsTokenId(null);
     setLeftId((current) => (current === tabId ? null : tabId));

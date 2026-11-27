@@ -2,13 +2,20 @@
 
 Status: Implemented
 
+> **Layout revision:** The reviewed layout places both icon rails beneath the app top bar
+> instead of running them the full height of the viewport. Each drawer is attached to its rail
+> and opens directly from it, overlaying both the session header and the scene map. The header
+> is no longer kept uncovered. The scene keeps its existing size and position, and the left and
+> right drawers remain independent. Where later sections still describe full-height rails or a
+> protected header, this revision supersedes them.
+
 ## Goal
 
-Replace the current text-tab session drawers with persistent, full-height icon rails that act as the left and right borders of the app. Rework the player session tools around Scene, Character, Domain cards, and Notes.
+Replace the current text-tab session drawers with persistent icon rails that run from the bottom of the app top bar to the bottom of the viewport and frame the session area. Rework the player session tools around Scene, Character, Domain cards, and Notes.
 
-The app title and session heading sit between the rails and begin at the same vertical level as the rails. The header remains outside the drawer workspace, so it stays visible while drawers are open.
+The app title and session heading sit beneath the top bar. An open drawer may cover the heading; no space is reserved to keep it visible.
 
-The rails never collapse. Clicking an icon slides its drawer over the scene map. The scene map keeps its existing size and position; it is not pushed or shrunk.
+The rails never collapse. Clicking an icon slides its drawer out from the rail and over the session header and scene map. The scene map keeps its existing size and position; it is not pushed or shrunk.
 
 Both the left and right drawers can be open at the same time. This supports lore-heavy sections where the scene is less important. Opening both covers more of the scene, but the scene remains the same size underneath.
 
@@ -42,7 +49,7 @@ The current rails are text buttons. Drawers overlay the scene and the rail disap
 
 The new layout changes the navigation, not the scene size: the rails become the app borders, the drawers overlay the scene map, and the scene keeps its current dimensions.
 
-The title and session heading move to the same top level as the full-height rails.
+The title and session heading move beneath the top bar and are no longer protected from drawer overlays.
 
 ---
 
@@ -52,9 +59,10 @@ Use a **persistent icon rail** on each side of the session:
 
 - Left rail for primary session tools.
 - Right rail for notes.
-- The rails are fixed to the screen edges, run the full height of the app, and act as the app borders.
+- The rails are fixed to the screen edges, start beneath the app top bar, and run to the bottom of the viewport.
 - The rails never collapse.
-- The app title and session heading sit between the rails at the same top level as the rails.
+- The app title and session heading sit beneath the top bar and may be covered by an open drawer.
+- Each drawer is attached to its rail and opens directly from it.
 - The drawer is the collapsible part.
 - Clicking an icon opens its drawer.
 - Clicking the active icon closes that side's drawer.
@@ -67,43 +75,45 @@ Use a **persistent icon rail** on each side of the session:
 
 ### Layout
 
-The app title and session heading span the central area between the full-height rails and begin at the same vertical level as the rails.
+The app title and session heading sit beneath the top bar, inside the central area between the rails. An open drawer may cover the heading; no space is reserved to keep it visible.
 
-The header remains outside the drawer overlay area. This keeps the campaign name, scene name, scene subtitle, grid control, join button, end button, and table strip visible while either or both drawers are open.
+The drawers overlay both the session header and the scene map. This keeps the layout compact instead of permanently reserving a header band.
 
 ```text
-┌──────┬──────────────────────────────────────────────┬──────┐
-│ rail │ app title / session heading                  │ rail │
+┌────────────────────────────────────────────────────────────┐
+│ app top bar                                                │
+├──────┬──────────────────────────────────────────────┬──────┤
+│ rail │ session heading                              │ rail │
 │      ├──────────────────────────────────────────────┤      │
 │      │ scene map with drawers overlaying it         │      │
 └──────┴──────────────────────────────────────────────┴──────┘
 ```
 
-The scene map occupies the full width between the rails. The drawers sit above the scene map at the left and right edges.
+The scene map occupies the full width between the rails. Each drawer is attached to its rail and opens from it, over the heading and scene.
 
 ```text
 both closed:
-┌──────┬──────────────────────────────────────────────┬──────┐
-│ rail │                 scene map                    │ rail │
-└──────┴──────────────────────────────────────────────┴──────┘
+┌────────┬──────────────────────────────────────────┬────────┐
+│ rail   │               scene map                  │ rail   │
+└────────┴──────────────────────────────────────────┴────────┘
 
 both open:
-┌──────┬──────────────┬────────────────┬──────────────┬──────┐
-│ rail │ left drawer  │ scene visible  │ right drawer │ rail │
-│      │ overlaying   │ underneath     │ overlaying   │      │
-└──────┴──────────────┴────────────────┴──────────────┴──────┘
+┌────────┬──────────────┬──────────────┬──────────────┬────────┐
+│ rail   │ left drawer  │ scene visible│ right drawer │ rail   │
+│        │ overlaying   │ underneath   │ overlaying    │        │
+└────────┴──────────────┴──────────────┴──────────────┴────────┘
 ```
 
 - Rail width: `56px` desktop.
 - Icon button: `40px × 40px`.
 - Drawer width: `320px` to `360px` each.
-- Drawers slide in over the scene map.
+- Drawers slide out from their rails over the header and scene map.
 - The scene map keeps its size and position; it does not flex, shrink, or shift.
-- The GM stats sub-panel opens over the scene map beside the left drawer.
+- The GM stats sub-panel opens beside the left drawer.
 - There is no scrim. The drawers themselves are the only overlay.
-- The title and session heading are never covered by the rails or drawers.
+- The rails begin beneath the top bar, so the app title stays visible when drawers are open.
 - On narrow screens, cap the drawer widths so the uncovered part of the scene remains usable. Do not move the scene.
-- Drawers are clipped to the workspace below the header.
+- Drawers run from the bottom of the top bar to the bottom of the viewport.
 
 ---
 
@@ -531,19 +541,19 @@ Add:
 
 Update:
 
-- Make the rails full height at the viewport edges.
-- Start the app title and session heading between the rails at the same vertical level as the rail tops.
-- Keep the header outside the drawer overlay area so it is never covered.
+- Fix the rails to the viewport edges from below the top bar to the bottom.
+- Inset the session content by the rail width so the rails do not cover it.
+- Let drawers overlay the session header and scene map.
 - Remove text-tab-specific styles that are no longer used.
 - Keep the scene map at its current size and position.
-- Position drawer panes absolutely inside the workspace below the header.
-- Left drawer: offset from the left rail; right drawer: offset from the right rail.
+- Position drawer panes fixed to the viewport, flush with their rail.
+- Left drawer: `left` equals the left rail width; right drawer: `right` equals the right rail width.
 - Allow both drawer panes to be open at once.
 - Animate each drawer with transform/opacity, not width.
 - Do not use flex/grid width changes that shrink the scene.
 - Adjust the GM stats panel offset to include the fixed rail and open token drawer.
 - Add responsive rail width and drawer width rules.
-- Clip the drawers to the workspace below the header.
+- Keep the rails' vertical start in sync with the measured top bar height.
 - Respect `prefers-reduced-motion` for the drawer and ping animations.
 - Hide tooltips on coarse-pointer devices if they interfere with touch, but keep `aria-label`.
 
@@ -596,10 +606,10 @@ Suggested visual treatment:
 - Right drawer overlays the right side of the scene map.
 - The scene map keeps the same size and position with either or both drawers open.
 - With both drawers open, more of the scene is covered, but the scene size is unchanged.
-- The app title and session heading stay visible at the top of the rail frame while drawers are open.
-- The campaign name, scene name, controls, and table strip are never covered by the drawer.
+- The app top bar stays visible above the rails and drawers.
+- Open drawers can cover the session heading, campaign name, controls, and table strip.
 - No full-screen scrim is added; the drawer is the only overlay.
-- Drawers stay below the header on all viewport sizes.
+- Drawers start below the top bar and run to the bottom of the viewport on all sizes.
 - GM stats sub-panel opens beside the token drawer and is not clipped by the rail.
 - With both drawers open, the stats panel does not cover the right drawer.
 - Existing token create/place/rename/hide/stats/delete still work.
@@ -643,11 +653,11 @@ Suggested visual treatment:
 
 - Add `@phosphor-icons/react`.
 - Create `SessionNavButton`.
-- Add fixed full-height rail and tooltip CSS.
+- Add fixed rail and tooltip CSS below the top bar.
 - Add the session workspace below the session heading.
-- Add drawer panes that overlay the scene map.
+- Add drawer panes attached to the rails that overlay the header and scene map.
 - Verify the scene map keeps its size and position as drawers open.
-- Verify the title and heading stay visible above the overlay.
+- Verify the top bar stays visible above the overlay.
 - Replace the text rails without changing drawer content.
 
 ### Phase 2 — GM navigation
@@ -686,14 +696,14 @@ Suggested visual treatment:
 The overhaul is complete when:
 
 - Both session roles use icon-only side navigation with hover/focus tooltips.
-- The rails are fixed to the screen edges and act as the app borders.
+- The rails are fixed to the screen edges beneath the top bar.
 - The rails never collapse.
-- The app title and session heading sit between the full-height rails at the same top level.
-- Clicking a nav icon slides its drawer over the scene map.
+- The app title and session heading sit beneath the top bar and may be covered by a drawer.
+- Clicking a nav icon slides its drawer out from the rail and over the header and scene map.
 - The scene map keeps the same size and position whether drawers are open or closed.
 - Both drawers can be open at the same time.
-- Both drawers open covers more of the scene map, but does not resize it.
-- The title and session heading are never covered.
+- Both drawers open covers more of the header and scene map, but does not resize the scene.
+- Drawers attach directly to their rails.
 - No full-screen scrim is added.
 - No text tab bar remains in the session drawers.
 - GM icons match: picture, triangle, exclamation, notebook.
@@ -725,10 +735,10 @@ The overhaul is complete when:
 | Ping stale state | Clear on scene change, token move, or token removal |
 | Stats tab | Removed; stats moved into Character |
 | Notes icon | Shared `Notebook` icon |
-| Rails | Fixed borders; never collapse |
-| Drawers | Overlay the scene map; no resize or reposition |
+| Rails | Fixed beneath the top bar; never collapse |
+| Drawers | Attached to their rails; overlay the header and scene map with no resize or reposition |
 | Open drawers | Independent; both may be open |
-| Header | Between the rails at the same top level; never covered |
+| Header | Beneath the top bar; may be covered by a drawer |
 | Scene size | Unchanged when drawers open or close |
 | Scrim | No full-screen scrim |
 | Hidden-token privacy | Client-side filtering accepted for personal use |
@@ -755,14 +765,14 @@ The overhaul is complete when:
    - Run regression tests for create, place, rename, hide, stats, delete, and scene switching.
 
 4. **Layout risk**
-   - Make the rails full-height fixed borders.
-   - Start the app title and session heading between the rails at the same top level.
-   - Keep the header outside the drawer overlay area so it is never covered.
+   - Make the rails fixed from below the top bar to the viewport bottom.
+   - Let drawers overlay the session header and scene map.
+   - Attach each drawer flush to its rail.
    - Overlay each drawer on top of the scene map; do not resize or reposition the scene.
    - Use CSS variables for rail width and drawer width.
    - Test left-only, right-only, both-open, and both-closed states.
    - Test GM stats panel offset and narrow viewports.
-   - Clip drawers to the workspace below the header.
+   - Test that the rails track the top bar height on narrow viewports.
 
 5. **Collapse behavior**
    - The rails themselves do not collapse.
@@ -818,6 +828,6 @@ The overhaul is complete when:
 
 ### Resolved decision
 
-The side rails are full-height fixed app borders. They do not collapse. The app title and session heading sit between the rails at the same top level and are never covered by drawers.
+The side rails are fixed beneath the top bar and run to the bottom of the viewport. They do not collapse. The app title and session heading sit beneath the top bar and may be covered by an open drawer.
 
-The drawers are the collapsible elements and can be open independently. Both may be open at the same time. Each open drawer overlays the scene map from its side. The scene map keeps its existing size and position. With both open, more of the scene is covered, but the scene itself does not resize or move. Drawers stay below the title and heading on all viewport sizes.
+The drawers are the collapsible elements and can be open independently. Both may be open at the same time. Each open drawer is attached to its rail and overlays the session header and scene map from its side. The scene map keeps its existing size and position. With both open, more of the header and scene is covered, but the scene itself does not resize or move. Drawers start below the top bar on all viewport sizes.

@@ -368,9 +368,9 @@ scene regardless of window size or image aspect ratio.
   token's square; it is not broadcast to other clients.
 - Domain cards is a placeholder until Daggerheart domain support exists.
 - Both roles use the same Notebook icon for the right-side Notes drawer.
-- The session uses fixed full-height icon rails with hover/focus labels. The rails frame the app,
-  the title and session heading sit between them, and drawers overlay the scene map without
-  resizing or moving it. Both drawers may be open at once.
+- The session uses fixed icon rails that start below the top bar, with hover/focus labels. Each
+  drawer opens directly from its rail and overlays the session header and scene map without
+  resizing or moving either. Both drawers may be open at once.
 - Movement is click-to-place, not drag-and-drop: click a token marker, move over a full square,
   click to place. Escape or clicking the marker again cancels. Backspace/Delete or the × returns
   a token to the drawer.
@@ -496,8 +496,8 @@ Do not expose this alpha to the internet.
   - Campaign scene reordering with persisted order
   - Campaign builder Hide/Show and Stats actions for placed tokens
   - Hidden campaign tokens shown muted in the builder preview
-  - Full-height icon rails with hover/focus tooltips
-  - Overlay drawers that do not resize the scene map
+  - Icon rails beneath the top bar with hover/focus tooltips
+  - Drawers attached to the rails that overlay the header and scene map without resizing either
   - Independent left/right drawers that can both be open
   - Player placed-token list and client-only token ping
   - Player Character and Domain cards navigation, with stats moved into Character

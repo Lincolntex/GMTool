@@ -16,6 +16,7 @@
   --ok: #78d39f;
   --radius: 16px;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+  --session-top-offset: 57px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -99,8 +100,7 @@ p {
 
 .session-shell {
   --session-rail-width: 56px;
-  padding-right: var(--session-rail-width);
-  padding-left: var(--session-rail-width);
+  --session-drawer-width: min(360px, 42vw);
 }
 
 .sr-only {
@@ -118,7 +118,7 @@ p {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 75;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -877,9 +877,11 @@ input[type="file"]::file-selector-button {
 .session-page-focus {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 57px);
-  min-height: calc(100vh - 57px);
+  height: calc(100dvh - var(--session-top-offset));
+  min-height: calc(100vh - var(--session-top-offset));
+  padding-right: calc(var(--session-rail-width, 56px) + clamp(12px, 2vw, 24px));
   padding-bottom: 12px;
+  padding-left: calc(var(--session-rail-width, 56px) + clamp(12px, 2vw, 24px));
 }
 
 .session-header {
@@ -1130,8 +1132,6 @@ input[type="file"]::file-selector-button {
 }
 
 .scene-workspace {
-  --session-drawer-width: min(340px, 86%);
-  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -1513,7 +1513,7 @@ input[type="file"]::file-selector-button {
 
 .session-nav {
   position: fixed;
-  top: 0;
+  top: var(--session-top-offset);
   bottom: 0;
   z-index: 80;
   display: flex;
@@ -1599,12 +1599,12 @@ input[type="file"]::file-selector-button {
 }
 
 .session-drawer {
-  position: absolute;
-  top: 0;
+  position: fixed;
+  top: var(--session-top-offset);
   bottom: 0;
   z-index: 70;
   display: flex;
-  width: var(--session-drawer-width, min(340px, 86%));
+  width: var(--session-drawer-width, min(360px, 42vw));
   flex-direction: column;
   border: 1px solid var(--border-strong);
   background: linear-gradient(180deg, #131b26, #0b1119);
@@ -1612,24 +1612,24 @@ input[type="file"]::file-selector-button {
 }
 
 .session-drawer-left {
-  left: 0;
+  left: var(--session-rail-width, 56px);
   border-left: 0;
   border-radius: 0 14px 14px 0;
   animation: drawer-in-left 0.17s ease-out;
 }
 
 .session-drawer-right {
-  right: 0;
+  right: var(--session-rail-width, 56px);
   border-right: 0;
   border-radius: 14px 0 0 14px;
   animation: drawer-in-right 0.17s ease-out;
 }
 
 .session-stats-drawer {
-  position: absolute;
-  top: 0;
+  position: fixed;
+  top: var(--session-top-offset);
   bottom: 0;
-  left: var(--session-drawer-width, min(340px, 86%));
+  left: calc(var(--session-rail-width, 56px) + var(--session-drawer-width, min(360px, 42vw)));
   z-index: 71;
   display: flex;
   width: min(300px, 46%);
@@ -1644,7 +1644,13 @@ input[type="file"]::file-selector-button {
 .scene-workspace:has(.session-drawer-right) .session-stats-drawer {
   width: min(
     300px,
-    max(0px, calc(100% - var(--session-drawer-width) * 2))
+    max(
+      0px,
+      calc(
+        100vw - var(--session-rail-width, 56px) * 2 -
+          var(--session-drawer-width, min(360px, 42vw)) * 2
+      )
+    )
   );
 }
 
@@ -2366,7 +2372,7 @@ input[type="file"]::file-selector-button {
 
   .session-page-focus {
     height: auto;
-    min-height: calc(100dvh - 100px);
+    min-height: calc(100dvh - var(--session-top-offset));
   }
 
   .scene-stage {
@@ -2395,6 +2401,7 @@ input[type="file"]::file-selector-button {
 
   .session-shell {
     --session-rail-width: 48px;
+    --session-drawer-width: min(320px, 84vw);
   }
 
   .session-nav {
@@ -2406,12 +2413,7 @@ input[type="file"]::file-selector-button {
     height: 36px;
   }
 
-  .scene-workspace {
-    --session-drawer-width: min(320px, 92%);
-  }
-
   .session-drawer {
-    width: var(--session-drawer-width);
     border-radius: 0 12px 12px 0;
   }
 
@@ -2420,8 +2422,8 @@ input[type="file"]::file-selector-button {
   }
 
   .session-stats-drawer {
-    left: 0;
+    left: var(--session-rail-width, 48px);
     z-index: 73;
-    width: min(300px, 88%);
+    width: min(300px, 84vw);
   }
 }

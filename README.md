@@ -10,8 +10,8 @@ The current shell includes:
 - Copy, Edit, Delete, and Launch actions for each campaign.
 - A live session with a scene grid, tokens, hidden-token controls, pointers, presence, and a
   join link/PIN.
-- Icon side rails with hover labels and overlay drawers for scenes, tokens, characters, stats
-  placeholders, domain cards, and notes.
+- Icon side rails beneath the top bar with hover labels and drawers that open directly from the
+  rails for scenes, tokens, characters, stats placeholders, domain cards, and notes.
 
 Campaigns, scenes, tokens, live rooms, and participants persist in PostgreSQL. Pointers, socket
 connections, and presence remain ephemeral.
@@ -227,7 +227,8 @@ actions.
 - Players can control only their own token; the GM can control every token.
 - Per-scene token placement. Returning to a scene restores its tokens.
 - Session nav: GM Scenes/Token/Requests and Notes; player Scene/Character/Domain cards and Notes.
-  The rails are fixed app borders, and drawers overlay the scene map without resizing it.
+  The icon rails start below the top bar, and each drawer opens directly from its rail. Drawers
+  overlay the header and scene map without resizing either.
 - Join link plus 6-digit PIN.
 - Player display name, pointer color, and independent token shape.
 - Live participant strip with color-and-shape markers and online/offline state.
