@@ -4,9 +4,11 @@ Status: Proposed
 
 ## Goal
 
-Replace the current text-tab session drawers with a persistent, collapsible icon navigation rail. Rework the player session tools around Scene, Character, Domain cards, and Notes.
+Replace the current text-tab session drawers with persistent icon rails that act as the left and right borders of the session. Rework the player session tools around Scene, Character, Domain cards, and Notes.
 
-The GM keeps the current scene, token, request, and notes tools, but the navigation becomes icon-first. The player gains a visible-token list and a local-only token ping.
+The rails never collapse. Clicking an icon expands its drawer inward and pushes the scene aside. Clicking the active icon collapses the drawer and returns the scene.
+
+The GM keeps the current scene, token, request, and notes tools, but the navigation becomes icon-first. The player gains a placed-token list and a local-only token ping.
 
 This is a client UI change. No database or server payload changes are required.
 
@@ -34,6 +36,8 @@ Relevant files:
 
 The current rails are text buttons. Drawers overlay the scene and the rail disappears while a drawer is open.
 
+The new layout changes that relationship: the rails become the app borders, the drawer expands inward, and the scene shifts to make room instead of being covered.
+
 ---
 
 ## 2. Target navigation model
@@ -42,32 +46,46 @@ Use a **persistent icon rail** on each side of the session:
 
 - Left rail for primary session tools.
 - Right rail for notes.
-- The rail stays visible while a drawer is open.
+- The rails are fixed to the screen edges and act as the app borders.
+- The rails never collapse.
 - The drawer is the collapsible part.
 - Clicking an icon opens its drawer.
 - Clicking the active icon closes the drawer.
 - Clicking another icon swaps the drawer content without closing the drawer.
+- Only one drawer is open at a time. Opening the right drawer closes the left drawer, and vice versa.
 - Hovering or focusing an icon shows its tab name in a tooltip.
 - The drawer title also shows the full tab name.
 
 ### Layout
 
+The session body is a horizontal layout:
+
 ```text
-┌──────┬──────────────┬───────────────────────────────┬──────────────┬──────┐
-│ icon │ open drawer  │                               │              │ icon │
-│ rail │  320-360px   │          scene stage          │              │ rail │
-│ 56px │              │                               │              │ 56px │
-└──────┴──────────────┴───────────────────────────────┴──────────────┴──────┘
+left rail | left drawer | scene | right drawer | right rail
+```
+
+When the left drawer opens, the scene shifts right. When the right drawer opens, the scene shifts left. When both drawers are closed, the scene uses the full space between the rails.
+
+```text
+closed:
+┌──────┬──────────────────────────────────────────────┬──────┐
+│ rail │                  scene stage                 │ rail │
+└──────┴──────────────────────────────────────────────┴──────┘
+
+left drawer open:
+┌──────┬──────────────┬───────────────────────────────┬──────┐
+│ rail │   drawer     │ scene shifted right           │ rail │
+└──────┴──────────────┴───────────────────────────────┴──────┘
 ```
 
 - Rail width: `56px` desktop.
 - Icon button: `40px × 40px`.
 - Drawer width: `320px` to `360px`.
-- Left drawer offset: `left: 56px`.
-- Right drawer offset: `right: 56px`.
+- Drawer width transitions from `0` to its target width.
+- The scene flexes and shrinks to fit the remaining space.
 - The GM stats sub-panel opens immediately to the right of the left drawer.
-- The scrim sits below the icon rails so the rail stays clickable.
-- On narrow screens the drawer may occupy most of the viewport, but the rail remains visible.
+- There is no scrim. The rail and drawer are part of the layout, not overlays.
+- On narrow screens, cap the drawer width so the scene retains a usable minimum. If the viewport is too narrow for both, the drawer may overlay while the rail remains fixed.
 
 ---
 
@@ -79,24 +97,29 @@ Why:
 
 - MIT licensed and tree-shakeable with Vite.
 - Simple geometric silhouettes.
-- Supports `weight="fill"` for solid/filled icons.
+- Supports regular, bold, and filled weights.
 - Covers every requested concept with one visual family.
 - `currentColor` works with the existing CSS theme.
 
-Use filled icons only:
+Prioritize the icon silhouette over a filled style. Use a simple outlined/bold glyph at 22px rather than a heavy filled icon:
 
 ```tsx
-<Image weight="fill" size={22} aria-hidden="true" />
+<Image weight="bold" size={22} aria-hidden="true" />
 ```
 
-Do not mix outline, duotone, or thin variants. Keep icon size and stroke/fill treatment consistent.
+- Start with Phosphor's regular or bold weight.
+- Use `weight="fill"` only when an outline is illegible at the target size.
+- Do not use duotone, thin, or light variants.
+- Active state is communicated with background/border, not by switching to a filled icon.
+- If an outline is too weak at 22px, increase to `bold` before switching to `fill`.
+- If Phosphor lacks the requested silhouette, generate a small custom SVG in the same 24×24 grid and visual weight.
 
 ### Icon mapping
 
 | Role | Tab | Icon | Phosphor export | Notes |
 |---|---|---|---|---|
 | GM | Scenes | Picture | `Image` | Same visual family as the player Scene icon |
-| GM | Token | Triangle | `Triangle` | Simple solid triangle |
+| GM | Token | Triangle | `Triangle` | Simple triangle silhouette |
 | GM | Requests | Exclamation | `WarningCircle` | Circle with exclamation; avoids confusion with the token triangle |
 | GM | Notes | Book/page | `Notebook` | Shared notes icon |
 | Player | Scene | Picture | `Image` | Top item in the player left rail |
@@ -104,7 +127,7 @@ Do not mix outline, duotone, or thin variants. Keep icon size and stroke/fill tr
 | Player | Domain cards | Playing card | `Cards` | Placeholder until Daggerheart domain support |
 | Player | Notes | Book/page | `Notebook` | Must match the GM Notes icon |
 
-If a requested glyph is not available in Phosphor, create a small local SVG in `ShapeIcon` style rather than mixing icon libraries. Keep the fallback within the same 24×24 grid and silhouette weight.
+If a requested glyph is not available in Phosphor, create a small local SVG in `ShapeIcon` style rather than mixing icon libraries. Keep the fallback within the same 24×24 grid and silhouette weight. A custom icon is the final fallback, not the first choice.
 
 ---
 
@@ -148,7 +171,7 @@ Tooltip structure:
   aria-expanded={active}
   data-tooltip={label}
 >
-  <Icon weight="fill" size={22} aria-hidden="true" />
+  <Icon weight="bold" size={22} aria-hidden="true" />
 </button>
 ```
 
@@ -199,13 +222,13 @@ Drawer content remains the existing placeholder.
 
 ### GM stats panel
 
-The existing smaller stats panel remains. It should now open beside the left drawer and account for the icon rail offset:
+The existing smaller stats panel remains. It opens beside the left drawer and accounts for both the fixed rail and the expanded token drawer:
 
 ```text
 left rail 56px + token drawer width
 ```
 
-It must remain above the scene but below the icon rail tooltips.
+It may overlay the shifted scene, but it must not cover the left rail. It stays below the icon rail tooltips and above the board content.
 
 ---
 
@@ -235,7 +258,7 @@ Content:
 
 - Title: `Scene` or `Active tokens`.
 - A short hint: `Click a placed token to ping it.`
-- A list of all tokens visible to the player on the active scene.
+- A list of all **placed** tokens visible to the player on the active scene.
 - Each row contains only:
   - The token glyph.
   - The token name.
@@ -245,10 +268,12 @@ Content:
 Filtering:
 
 ```ts
-room.tokens.filter((token) => !token.hidden)
+room.tokens.filter((token) => !token.hidden && token.cell)
 ```
 
-The server currently sends hidden tokens to all clients; the player client must continue filtering them. Do not change the server payload for this feature.
+Only placed tokens are listed. An unplaced token is either waiting to enter the scene or is no longer active, so it should not appear in the player Active tokens list.
+
+The server currently sends hidden tokens to all clients; the player client must continue filtering them. The project is personal-use only and the table is not expected to inspect socket payloads, so client-side filtering is an accepted risk for this pass.
 
 Ordering:
 
@@ -257,21 +282,21 @@ Ordering:
 
 Row behavior:
 
-- If the token is placed (`token.cell` is not null), the row is a button.
+- Every visible row is placed and is a button.
 - Clicking it triggers a local-only ping at the token’s square.
-- If the token is unplaced, the row is disabled and visually muted.
-- Rows still show only the token and name. Use a disabled state rather than adding status controls.
+- Rows show only the token and name.
 
 Empty state:
 
-- `No visible tokens on this scene.`
+- `No placed visible tokens on this scene.`
 
 Live updates:
 
 - `tokens:changed` already refreshes room state.
 - Hidden tokens disappear from the list when the GM hides them.
 - Revealed tokens appear automatically.
-- Placed/unplaced changes update row clickability.
+- Unplaced tokens are omitted until the GM places them.
+- When a token leaves the scene, its row disappears.
 
 ---
 
@@ -300,7 +325,9 @@ Add:
 - `localPing` state.
 - A timeout that clears the ping after about `1400ms`.
 - A new ping replaces the previous one and resets the timer.
+- Snapshot the token’s cell at click time.
 - Clear the ping on scene change and unmount.
+- Also clear the ping if the token is removed or moves while the ping is visible. This avoids a delayed effect pointing at an old square.
 
 ### Rendering
 
@@ -409,7 +436,15 @@ const playerLeft = [
 ];
 ```
 
-Keep one open-side state and one active-tab state per side.
+Keep one open-side state and one active-tab state per side. Only one drawer is open at a time.
+
+The drawer state also determines the session layout width:
+
+```text
+no drawer     -> left drawer 0, right drawer 0
+left drawer   -> left drawer 340px, right drawer 0
+right drawer  -> left drawer 0, right drawer 340px
+```
 
 New props:
 
@@ -425,6 +460,8 @@ Only the player session passes it.
 - Pass `onPingToken` to `SessionDrawers`.
 - Pass `localPing` to `SceneStage`.
 - Clear local ping when `room.activeSceneIndex` changes.
+- Clear local ping if the pinged token is removed or moves.
+- Pass the open drawer side to the session layout container if the layout is controlled there.
 
 ### `SceneStage.tsx`
 
@@ -448,6 +485,7 @@ No changes required. Broadcast pings stay separate from local pings.
 Add:
 
 ```css
+.session-body
 .session-nav
 .session-nav-left
 .session-nav-right
@@ -456,23 +494,25 @@ Add:
 .session-nav-button::after
 .session-nav-button:hover::after
 .session-nav-button:focus-visible::after
-.session-drawer-left
-.session-drawer-right
+.session-drawer-pane
+.session-drawer-pane.open
 .session-stats-drawer
 .player-token-list
 .player-token-row
-.player-token-row:disabled
 .ping-local
 ```
 
 Update:
 
 - Remove text-tab-specific styles that are no longer used.
-- Keep `.session-drawer` base styles.
-- Adjust drawer offsets for the persistent rails.
-- Adjust scrim stacking so rails stay clickable.
-- Adjust the GM stats panel offset.
+- Remove the drawer scrim and overlay positioning.
+- Keep the rail fixed at the viewport edges as a border.
+- Make the session body a horizontal flex/grid layout: rail, drawer pane, scene, drawer pane, rail.
+- Animate drawer width from `0` to its open width.
+- Let the scene flex/shrink as the drawer opens.
+- Adjust the GM stats panel offset to include the fixed rail and open token drawer.
 - Add responsive rail width and drawer width rules.
+- Respect `prefers-reduced-motion` for the drawer and ping animations.
 - Hide tooltips on coarse-pointer devices if they interfere with touch, but keep `aria-label`.
 
 Suggested visual treatment:
@@ -497,11 +537,12 @@ Suggested visual treatment:
 - Escape closes the open drawer.
 - Closing via Escape returns focus to the active nav button.
 - Drawer close button has an accessible label.
-- Player token rows are buttons with `aria-label="Ping Goblin"` when placed.
-- Disabled unplaced rows use `disabled` and remain readable.
+- Player token rows are buttons with `aria-label="Ping Goblin"`.
+- Only placed tokens are rendered, so there are no disabled token rows.
 - Add an `aria-live` status for the last local ping.
 - Verify tab order: left rail, drawer controls, scene, right rail.
 - Do not communicate active state by color alone; use background, border, and/or icon weight.
+- When a drawer closes, the scene returns to its previous width and the focus returns to the controlling icon.
 
 ---
 
@@ -516,20 +557,25 @@ Suggested visual treatment:
 - Hover and keyboard focus show the correct tooltip.
 - Clicking the active icon closes its drawer.
 - Switching icons swaps content without closing the drawer.
+- Opening the right drawer closes the left drawer, and vice versa.
+- Left drawer expansion shifts the scene right; closing it restores the scene width.
+- Right drawer expansion shifts the scene left; closing it restores the scene width.
+- No scrim or overlay covers the scene.
 - GM stats sub-panel opens beside the token drawer and is not clipped by the rail.
 - Existing token create/place/rename/hide/stats/delete still work.
 
 ### Player
 
 - Left rail order is Scene, Character, Domain cards.
-- Scene drawer lists only visible tokens.
+- Scene drawer lists only placed, visible tokens.
 - Hidden tokens never appear.
+- Unplaced tokens are omitted.
 - Revealed tokens appear without a refresh.
 - Token rows show only the glyph and name.
 - Placed-token click produces a local ping at the correct cell.
 - The ping disappears after roughly 1.4 seconds.
 - Repeated clicks reset the timer.
-- Unplaced rows are disabled.
+- Moving or removing the token clears the local ping.
 - The GM and other players do not see the local ping.
 - Character drawer contains token placement and stats placeholder.
 - Domain cards drawer shows the placeholder.
@@ -545,16 +591,20 @@ Suggested visual treatment:
 - Desktop and narrow viewport checks.
 - Keyboard-only navigation check.
 - Verify the scene remains reachable when a drawer is closed.
+- Verify drawer width transitions respect `prefers-reduced-motion`.
+- Verify icon silhouettes are legible at 22px without relying on filled icons.
 
 ---
 
 ## 16. Rollout sequence
 
-### Phase 1 — Icon foundation
+### Phase 1 — Icon foundation and push layout
 
 - Add `@phosphor-icons/react`.
 - Create `SessionNavButton`.
-- Add rail and tooltip CSS.
+- Add fixed rail and tooltip CSS.
+- Add the session body layout with collapsible drawer panes.
+- Verify the scene pushes right and left as drawers open.
 - Replace the text rails without changing drawer content.
 
 ### Phase 2 — GM navigation
@@ -562,6 +612,7 @@ Suggested visual treatment:
 - Wire GM Scenes, Token, Requests, and Notes.
 - Verify the stats sub-panel offset.
 - Confirm existing token actions are unchanged.
+- Verify one-drawer-at-a-time behavior and scene width restoration.
 
 ### Phase 3 — Player navigation
 
@@ -572,9 +623,10 @@ Suggested visual treatment:
 
 ### Phase 4 — Player active tokens and local ping
 
-- Filter visible tokens.
+- Filter to placed, visible tokens.
 - Add the player token list.
 - Add local ping state and rendering.
+- Clear local ping on scene change, token move, or token removal.
 - Add accessibility announcement.
 
 ### Phase 5 — Polish and verification
@@ -591,10 +643,16 @@ Suggested visual treatment:
 The overhaul is complete when:
 
 - Both session roles use icon-only side navigation with hover/focus tooltips.
+- The rails are fixed to the screen edges and act as the app borders.
+- The rails never collapse.
+- Clicking a nav icon expands its drawer and pushes the scene aside.
+- Closing the drawer restores the scene width.
+- No scrim or overlay covers the scene.
 - No text tab bar remains in the session drawers.
 - GM icons match: picture, triangle, exclamation, notebook.
 - Player icons match: picture, player, playing cards, notebook.
-- The player Scene drawer lists only visible tokens.
+- Icons prioritize simple silhouettes over filled styles.
+- The player Scene drawer lists only placed, visible tokens.
 - Player token rows show only token glyph and name.
 - Clicking a placed token pings it locally for that player only.
 - Hidden tokens are absent from the player Active tokens list.
@@ -611,17 +669,90 @@ The overhaul is complete when:
 
 | Item | Decision |
 |---|---|
-| Icon library | `@phosphor-icons/react`, filled silhouettes |
+| Icon library | `@phosphor-icons/react`, outline/bold silhouettes first |
 | Requests icon | `WarningCircle` to avoid reusing the token triangle |
 | Domain cards icon | Phosphor `Cards`; custom SVG fallback if needed |
-| Active tokens list | All visible tokens; unplaced rows disabled |
+| Active tokens list | Only placed, visible tokens |
 | Local ping | Client-only state, no socket event |
 | Ping duration | About 1.4 seconds, matching existing pings |
+| Ping stale state | Clear on scene change, token move, or token removal |
 | Stats tab | Removed; stats moved into Character |
 | Notes icon | Shared `Notebook` icon |
+| Rails | Fixed borders; never collapse |
+| Drawers | Expand inward and push the scene |
+| Open drawers | One at a time |
+| Scrim | Removed; layout pushes instead of overlaying |
+| Hidden-token privacy | Client-side filtering accepted for personal use |
 | Server changes | None |
 | Database changes | None |
 
-Open question to confirm during implementation:
+---
 
-- If “collapsible side nav” also means hiding the icon rail itself, add a separate rail-collapse toggle in a later pass. This plan keeps the icon rail persistent and collapses the drawer panels, which matches the requested hover-name behavior.
+## 19. Risk management decisions
+
+1. **Hidden tokens**
+   - This is a personal-use app. Players are not expected to inspect socket payloads.
+   - Keep client-side filtering. Do not add server-side role filtering in this pass.
+   - Document this as a known limitation rather than a security boundary.
+
+2. **Local ping**
+   - Use a separate `localPing` state.
+   - Do not reuse the broadcast `pointer:ping` event.
+   - Verify with two clients that only the clicking player sees the ping.
+
+3. **Migration risk**
+   - Split the work into the phases above.
+   - Verify GM token management immediately after the navigation shell change.
+   - Run regression tests for create, place, rename, hide, stats, delete, and scene switching.
+
+4. **Layout risk**
+   - Make the rails fixed borders.
+   - Expand the drawer inward and push the scene.
+   - Use CSS variables for rail width and drawer width.
+   - Test drawer expansion, scene resizing, GM stats panel offset, and narrow viewports.
+
+5. **Collapse behavior**
+   - The rails themselves do not collapse.
+   - The drawer is the collapsible element.
+   - Clicking the active icon collapses the drawer and restores the scene width.
+
+6. **Active tokens**
+   - Only display placed, visible tokens.
+   - Unplaced tokens are either waiting to enter the scene or no longer active, so they are omitted.
+   - When a token is placed, it appears in the list automatically.
+
+7. **Icon style**
+   - Prioritize silhouette clarity over filled icons.
+   - Start with regular/bold Phosphor glyphs.
+   - Use fill only if the outline is illegible at 22px.
+   - Generate a custom SVG as the final fallback.
+
+8. **Tooltip accessibility**
+   - Show tooltips on hover and `:focus-visible`.
+   - Keep `aria-label` and a native `title` fallback.
+   - Do not rely on hover alone.
+
+9. **Character drawer density**
+   - Use clear sections for character identity, token placement, and stats.
+   - Allow the drawer body to scroll.
+   - Keep the stats placeholder compact until the full sheet exists.
+
+10. **Dead Stats tab code**
+    - Remove the player right-side Stats tab and its state paths.
+    - Keep the reusable stats body for the Character drawer.
+    - Search for and remove obsolete stats-tab CSS and props.
+
+11. **Stale local ping**
+    - Snapshot the clicked token’s cell.
+    - Clear the ping on scene change.
+    - Clear the ping if the token moves or is removed.
+    - A small visual delay is acceptable, but stale pings should not persist.
+
+12. **Testing**
+    - Test with a GM tab and at least one player tab.
+    - Verify local ping isolation, hidden-token filtering, drawer push behavior, and keyboard navigation.
+    - Keep manual testing focused on the same interaction areas during review.
+
+### Resolved decision
+
+The side rail is a fixed app border. It does not collapse. The drawer is the collapsible element, and the scene is pushed aside while the drawer is open. Only one drawer is open at a time.
