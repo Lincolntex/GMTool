@@ -3,7 +3,11 @@ import crypto from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import cookieParser from 'cookie-parser';
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express';
 import multer from 'multer';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
@@ -21,6 +25,7 @@ import {
   createRoom,
   endRoom,
   getActiveRoom,
+  hydrateActiveRoom,
   publicRoom,
   publicTokens,
   setRoomScene,
@@ -34,6 +39,8 @@ import {
   updateCampaign,
 } from './campaigns';
 import { registerSocketHandlers } from './socket';
+import { pool } from './db/client';
+import { runMigrations } from './db/migrate';
 
 const PORT = Number(process.env.PORT || 3001);
 const uploadDir = path.resolve('uploads');
@@ -84,12 +91,29 @@ const io = new Server(httpServer, {
 });
 registerSocketHandlers(io);
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
-});
+function asyncHandler(
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<void>,
+) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    handler(req, res, next).catch(next);
+  };
+}
+
+app.get(
+  '/api/health',
+  asyncHandler(async (_req, res) => {
+    try {
+      await pool.query('select 1');
+      res.json({ ok: true });
+    } catch {
+      res.status(503).json({ ok: false });
+    }
+  }),
+);
 
 app.post('/api/gm/login', (req, res) => {
-  const passphrase = typeof req.body?.passphrase === 'string' ? req.body.passphrase : '';
+  const passphrase =
+    typeof req.body?.passphrase === 'string' ? req.body.passphrase : '';
   if (!checkPassphrase(passphrase)) {
     res.status(401).json({ error: 'Incorrect GM passphrase.' });
     return;
@@ -119,33 +143,41 @@ app.get('/api/rooms/active', requireGm, (_req, res) => {
   res.json({ room: publicRoom(room), pin: room.pin });
 });
 
-app.post('/api/rooms/:id/scene', requireGm, (req, res) => {
-  const room = getActiveRoom();
-  if (!room || room.id !== req.params.id || room.ended) {
-    res.status(404).json({ error: 'Session not found or already ended.' });
-    return;
-  }
-
-  if (req.body?.index !== undefined) {
-    try {
-      setRoomScene(room, Number(req.body.index));
-    } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid scene.' });
+app.post(
+  '/api/rooms/:id/scene',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const room = getActiveRoom();
+    if (!room || room.id !== req.params.id || room.ended) {
+      res.status(404).json({ error: 'Session not found or already ended.' });
       return;
     }
-  } else {
-    const direction = String(req.body?.direction || '');
-    if (direction !== 'next' && direction !== 'prev') {
-      res.status(400).json({ error: 'Scene direction must be "next" or "prev".' });
-      return;
-    }
-    changeRoomScene(room, direction);
-  }
 
-  room.pointers.clear();
-  io.to(room.id).emit('scene:changed', publicRoom(room));
-  res.json({ room: publicRoom(room) });
-});
+    if (req.body?.index !== undefined) {
+      try {
+        await setRoomScene(room, Number(req.body.index));
+      } catch (error) {
+        res.status(400).json({
+          error: error instanceof Error ? error.message : 'Invalid scene.',
+        });
+        return;
+      }
+    } else {
+      const direction = String(req.body?.direction || '');
+      if (direction !== 'next' && direction !== 'prev') {
+        res.status(400).json({
+          error: 'Scene direction must be "next" or "prev".',
+        });
+        return;
+      }
+      await changeRoomScene(room, direction);
+    }
+
+    room.pointers.clear();
+    io.to(room.id).emit('scene:changed', publicRoom(room));
+    res.json({ room: publicRoom(room) });
+  }),
+);
 
 app.post('/api/uploads', requireGm, (req, res, next) => {
   upload.single('image')(req, res, (error) => {
@@ -161,89 +193,128 @@ app.post('/api/uploads', requireGm, (req, res, next) => {
   });
 });
 
-app.get('/api/campaigns', requireGm, (_req, res) => {
-  res.json({ campaigns: listCampaigns() });
-});
+app.get(
+  '/api/campaigns',
+  requireGm,
+  asyncHandler(async (_req, res) => {
+    res.json({ campaigns: await listCampaigns() });
+  }),
+);
 
-app.get('/api/campaigns/:id', requireGm, (req, res) => {
-  const campaign = getCampaign(req.params.id);
-  if (!campaign) {
-    res.status(404).json({ error: 'Campaign not found.' });
-    return;
-  }
-  res.json({ campaign });
-});
-
-app.post('/api/campaigns', requireGm, (req, res) => {
-  try {
-    const campaign = createCampaign(req.body);
-    res.status(201).json({ campaign });
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : 'Could not create campaign.' });
-  }
-});
-
-app.put('/api/campaigns/:id', requireGm, (req, res) => {
-  try {
-    const campaign = updateCampaign(req.params.id, req.body);
+app.get(
+  '/api/campaigns/:id',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const campaign = await getCampaign(req.params.id);
     if (!campaign) {
       res.status(404).json({ error: 'Campaign not found.' });
       return;
     }
     res.json({ campaign });
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : 'Could not update campaign.' });
-  }
-});
+  }),
+);
 
-app.delete('/api/campaigns/:id', requireGm, (req, res) => {
-  if (!deleteCampaign(req.params.id)) {
-    res.status(404).json({ error: 'Campaign not found.' });
-    return;
-  }
-  res.json({ ok: true });
-});
+app.post(
+  '/api/campaigns',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    try {
+      const campaign = await createCampaign(req.body);
+      res.status(201).json({ campaign });
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Could not create campaign.',
+      });
+    }
+  }),
+);
 
-app.post('/api/campaigns/:id/copy', requireGm, (req, res) => {
-  const campaign = copyCampaign(req.params.id);
-  if (!campaign) {
-    res.status(404).json({ error: 'Campaign not found.' });
-    return;
-  }
-  res.status(201).json({ campaign });
-});
+app.put(
+  '/api/campaigns/:id',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    try {
+      const campaign = await updateCampaign(req.params.id, req.body);
+      if (!campaign) {
+        res.status(404).json({ error: 'Campaign not found.' });
+        return;
+      }
+      res.json({ campaign });
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Could not update campaign.',
+      });
+    }
+  }),
+);
 
-app.post('/api/campaigns/:id/launch', requireGm, (req, res) => {
-  const campaign = getCampaign(req.params.id);
-  if (!campaign) {
-    res.status(404).json({ error: 'Campaign not found.' });
-    return;
-  }
-  const firstScene = campaign.scenes[0];
-  if (!firstScene) {
-    res.status(400).json({ error: 'This campaign has no scenes to launch.' });
-    return;
-  }
+app.delete(
+  '/api/campaigns/:id',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    if (!(await deleteCampaign(req.params.id))) {
+      res.status(404).json({ error: 'Campaign not found.' });
+      return;
+    }
+    res.json({ ok: true });
+  }),
+);
 
-  const previous = getActiveRoom();
-  const room = createRoom({
-    title: campaign.name,
-    scenes: campaign.scenes.map((scene) => ({
-      title: scene.title,
-      background: scene.background,
-      grid: scene.grid,
-      tokens: scene.tokens,
-    })),
-  });
+app.post(
+  '/api/campaigns/:id/copy',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const campaign = await copyCampaign(req.params.id);
+    if (!campaign) {
+      res.status(404).json({ error: 'Campaign not found.' });
+      return;
+    }
+    res.status(201).json({ campaign });
+  }),
+);
 
-  if (previous) {
-    previous.ended = true;
-    io.to(previous.id).emit('session:ended');
-    io.socketsLeave(previous.id);
-  }
+app.post(
+  '/api/campaigns/:id/launch',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const campaign = await getCampaign(req.params.id);
+    if (!campaign) {
+      res.status(404).json({ error: 'Campaign not found.' });
+      return;
+    }
+    const firstScene = campaign.scenes[0];
+    if (!firstScene) {
+      res.status(400).json({ error: 'This campaign has no scenes to launch.' });
+      return;
+    }
 
-  res.status(201).json({ room: publicRoom(room), pin: room.pin });
-});
+    const previous = getActiveRoom();
+    const room = await createRoom({
+      title: campaign.name,
+      campaignId: campaign.id,
+      scenes: campaign.scenes.map((scene) => ({
+        title: scene.title,
+        background: scene.background,
+        grid: scene.grid,
+        tokens: scene.tokens,
+      })),
+    });
+
+    if (previous) {
+      previous.ended = true;
+      io.to(previous.id).emit('session:ended');
+      io.socketsLeave(previous.id);
+    }
+
+    res.status(201).json({ room: publicRoom(room), pin: room.pin });
+  }),
+);
 
 app.get('/api/rooms/:id', (req, res) => {
   const room = getActiveRoom();
@@ -254,41 +325,50 @@ app.get('/api/rooms/:id', (req, res) => {
   res.json({ room: publicRoom(room) });
 });
 
-app.post('/api/rooms/:id/join', (req, res) => {
-  const room = getActiveRoom();
-  if (!room || room.id !== req.params.id || room.ended) {
-    res.status(404).json({ error: 'Session not found or already ended.' });
-    return;
-  }
+app.post(
+  '/api/rooms/:id/join',
+  asyncHandler(async (req, res) => {
+    const room = getActiveRoom();
+    if (!room || room.id !== req.params.id || room.ended) {
+      res.status(404).json({ error: 'Session not found or already ended.' });
+      return;
+    }
 
-  const pin = String(req.body?.pin || '').trim();
-  if (pin !== room.pin) {
-    res.status(401).json({ error: 'Incorrect PIN.' });
-    return;
-  }
+    const pin = String(req.body?.pin || '').trim();
+    if (pin !== room.pin) {
+      res.status(401).json({ error: 'Incorrect PIN.' });
+      return;
+    }
 
-  try {
-    const name = String(req.body?.name || '');
-    const color = String(req.body?.color || '');
-    const shape = req.body?.shape;
-    const { token } = addParticipant(room, name, color, shape);
-    io.to(room.id).emit('tokens:changed', publicTokens(room));
-    res.json({ participantToken: token, room: publicRoom(room) });
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : 'Could not join.' });
-  }
-});
+    try {
+      const name = String(req.body?.name || '');
+      const color = String(req.body?.color || '');
+      const shape = req.body?.shape;
+      const { token } = await addParticipant(room, name, color, shape);
+      io.to(room.id).emit('tokens:changed', publicTokens(room));
+      res.json({ participantToken: token, room: publicRoom(room) });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Could not join.',
+      });
+    }
+  }),
+);
 
-app.post('/api/rooms/:id/end', requireGm, (req, res) => {
-  const room = endRoom(req.params.id);
-  if (!room) {
-    res.status(404).json({ error: 'Session not found or already ended.' });
-    return;
-  }
-  io.to(room.id).emit('session:ended');
-  io.socketsLeave(room.id);
-  res.json({ ok: true });
-});
+app.post(
+  '/api/rooms/:id/end',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const room = await endRoom(req.params.id);
+    if (!room) {
+      res.status(404).json({ error: 'Session not found or already ended.' });
+      return;
+    }
+    io.to(room.id).emit('session:ended');
+    io.socketsLeave(room.id);
+    res.json({ ok: true });
+  }),
+);
 
 app.use(
   '/uploads',
@@ -317,21 +397,58 @@ if (existsSync(clientDist)) {
   });
 }
 
-app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  if (error instanceof multer.MulterError) {
-    res.status(400).json({ error: error.message });
-    return;
-  }
-  if (error instanceof Error) {
-    res.status(400).json({ error: error.message });
-    return;
-  }
-  res.status(500).json({ error: 'Unexpected server error.' });
-});
+app.use(
+  (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (error instanceof multer.MulterError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: 'Unexpected server error.' });
+  },
+);
 
-httpServer.listen(PORT, () => {
-  console.log(`GMTool alpha server listening on http://localhost:${PORT}`);
-  if (isDefaultPassphrase()) {
-    console.warn('Using the default GM passphrase "gm-alpha". Set GM_PASSPHRASE in .env.');
-  }
+async function start(): Promise<void> {
+  await runMigrations();
+  await hydrateActiveRoom();
+
+  httpServer.listen(PORT, () => {
+    console.log(`GMTool alpha server listening on http://localhost:${PORT}`);
+    if (isDefaultPassphrase()) {
+      console.warn(
+        'Using the default GM passphrase "gm-alpha". Set GM_PASSPHRASE in .env.',
+      );
+    }
+  });
+}
+
+let shuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}. Shutting down.`);
+
+  const forceExit = setTimeout(() => {
+    console.error('Shutdown timed out.');
+    process.exit(1);
+  }, 5000);
+  forceExit.unref();
+
+  io.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+void start().catch(async (error: unknown) => {
+  console.error('GMTool alpha failed to start.', error);
+  await pool.end();
+  process.exitCode = 1;
 });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type {
   Campaign,
   CampaignScene,
@@ -10,16 +11,15 @@ import type {
 } from '../src/shared/types';
 import { clampCellsAcross, gridGeometry, wrapOffset } from '../src/shared/grid';
 import { GM_TOKEN_COLORS, gmTokenShape } from '../src/shared/shapes';
+import { db, type Transaction } from './db/client';
+import {
+  campaignScenes,
+  campaignTokens,
+  campaigns,
+} from './db/schema';
 
 const PRESETS: PresetId[] = ['snow', 'grass', 'dungeon'];
 const MAX_SCENES = 50;
-
-/**
- * Temporary in-memory campaign store for the dashboard shell.
- * This intentionally resets when the server restarts.
- * The API shape is designed so a database-backed store can replace this module later.
- */
-let campaigns: Campaign[] = [];
 
 function cleanText(value: unknown, fallback: string, maxLength = 80): string {
   const text = typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -121,7 +121,11 @@ function cleanTokens(value: unknown, grid: GridSettings | null): TokenInfo[] {
           ? candidate.id
           : crypto.randomUUID(),
       kind: candidate.kind,
-      label: cleanText(candidate.label, candidate.kind === 'enemy' ? 'Enemy' : 'NPC', 24),
+      label: cleanText(
+        candidate.label,
+        candidate.kind === 'enemy' ? 'Enemy' : 'NPC',
+        24,
+      ),
       color: GM_TOKEN_COLORS[candidate.kind],
       shape: gmTokenShape(candidate.kind),
       ownerId: null,
@@ -141,7 +145,10 @@ function cleanScene(value: unknown): CampaignScene {
   const scene = value as Partial<CampaignScene>;
   const grid = cleanGrid(scene.grid);
   return {
-    id: typeof scene.id === 'string' && scene.id ? scene.id : crypto.randomUUID(),
+    id:
+      typeof scene.id === 'string' && scene.id
+        ? scene.id
+        : crypto.randomUUID(),
     title: cleanText(scene.title, 'Untitled scene'),
     background: cleanBackground(scene.background),
     grid,
@@ -168,82 +175,211 @@ function cleanInput(input: unknown): { name: string; scenes: CampaignScene[] } {
   };
 }
 
-export function listCampaigns(): CampaignSummary[] {
-  return [...campaigns]
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map((campaign) => ({
-      id: campaign.id,
-      name: campaign.name,
-      sceneCount: campaign.scenes.length,
-      updatedAt: campaign.updatedAt,
-    }));
+async function insertSceneTree(
+  tx: Transaction,
+  campaignId: string,
+  scenes: CampaignScene[],
+): Promise<void> {
+  const sceneRows = scenes.map((scene, index) => ({
+    id: scene.id,
+    campaignId,
+    position: index,
+    title: scene.title,
+    background: scene.background,
+    grid: scene.grid,
+  }));
+
+  if (sceneRows.length === 0) return;
+  await tx.insert(campaignScenes).values(sceneRows);
+
+  const tokenRows = scenes.flatMap((scene) =>
+    scene.tokens.map((token, index) => ({
+      id: token.id,
+      sceneId: scene.id,
+      position: index,
+      kind: token.kind,
+      label: token.label,
+      color: token.color,
+      shape: token.shape,
+      cellCol: token.cell?.col ?? null,
+      cellRow: token.cell?.row ?? null,
+      hidden: token.hidden,
+    })),
+  );
+
+  if (tokenRows.length > 0) {
+    await tx.insert(campaignTokens).values(tokenRows);
+  }
 }
 
-export function getCampaign(id: string): Campaign | null {
-  const campaign = campaigns.find((candidate) => candidate.id === id);
-  return campaign ? structuredClone(campaign) : null;
-}
+async function loadCampaign(id: string): Promise<Campaign | null> {
+  const [row] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.id, id))
+    .limit(1);
 
-export function createCampaign(input: unknown): Campaign {
-  const cleaned = cleanInput(input);
-  const now = Date.now();
-  const campaign: Campaign = {
-    id: crypto.randomUUID(),
-    name: cleaned.name,
-    scenes: cleaned.scenes,
-    createdAt: now,
-    updatedAt: now,
+  if (!row) return null;
+
+  const sceneRows = await db
+    .select()
+    .from(campaignScenes)
+    .where(eq(campaignScenes.campaignId, id))
+    .orderBy(asc(campaignScenes.position));
+
+  const sceneIds = sceneRows.map((scene) => scene.id);
+  const tokenRows =
+    sceneIds.length > 0
+      ? await db
+          .select()
+          .from(campaignTokens)
+          .where(inArray(campaignTokens.sceneId, sceneIds))
+          .orderBy(asc(campaignTokens.position))
+      : [];
+
+  const tokensByScene = new Map<string, TokenInfo[]>();
+  for (const token of tokenRows) {
+    const list = tokensByScene.get(token.sceneId) ?? [];
+    list.push({
+      id: token.id,
+      kind: token.kind,
+      label: token.label,
+      color: token.color,
+      shape: token.shape,
+      ownerId: null,
+      cell:
+        token.cellCol === null || token.cellRow === null
+          ? null
+          : { col: token.cellCol, row: token.cellRow },
+      hidden: token.hidden,
+    });
+    tokensByScene.set(token.sceneId, list);
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    scenes: sceneRows.map((scene) => ({
+      id: scene.id,
+      title: scene.title,
+      background: scene.background,
+      grid: scene.grid,
+      tokens: tokensByScene.get(scene.id) ?? [],
+    })),
+    createdAt: row.createdAt.getTime(),
+    updatedAt: row.updatedAt.getTime(),
   };
-  campaigns.push(campaign);
-  return structuredClone(campaign);
 }
 
-export function updateCampaign(id: string, input: unknown): Campaign | null {
-  const index = campaigns.findIndex((campaign) => campaign.id === id);
-  if (index === -1) return null;
+export async function listCampaigns(): Promise<CampaignSummary[]> {
+  const rows = await db
+    .select({
+      id: campaigns.id,
+      name: campaigns.name,
+      sceneCount: sql<number>`count(${campaignScenes.id})::int`,
+      updatedAt: campaigns.updatedAt,
+    })
+    .from(campaigns)
+    .leftJoin(campaignScenes, eq(campaignScenes.campaignId, campaigns.id))
+    .groupBy(campaigns.id, campaigns.name, campaigns.updatedAt)
+    .orderBy(desc(campaigns.updatedAt));
 
-  const existing = campaigns[index];
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    sceneCount: Number(row.sceneCount),
+    updatedAt: row.updatedAt.getTime(),
+  }));
+}
+
+export async function getCampaign(id: string): Promise<Campaign | null> {
+  return loadCampaign(id);
+}
+
+export async function createCampaign(input: unknown): Promise<Campaign> {
   const cleaned = cleanInput(input);
-  const updated: Campaign = {
-    ...existing,
-    name: cleaned.name,
-    scenes: cleaned.scenes,
-    updatedAt: Date.now(),
-  };
+  const id = crypto.randomUUID();
+  const now = new Date();
 
-  campaigns[index] = updated;
-  return structuredClone(updated);
+  await db.transaction(async (tx) => {
+    await tx.insert(campaigns).values({
+      id,
+      name: cleaned.name,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await insertSceneTree(tx, id, cleaned.scenes);
+  });
+
+  const campaign = await loadCampaign(id);
+  if (!campaign) throw new Error('Campaign could not be loaded after creation.');
+  return campaign;
 }
 
-export function deleteCampaign(id: string): boolean {
-  const index = campaigns.findIndex((campaign) => campaign.id === id);
-  if (index === -1) return false;
-  campaigns.splice(index, 1);
-  return true;
+export async function updateCampaign(
+  id: string,
+  input: unknown,
+): Promise<Campaign | null> {
+  const cleaned = cleanInput(input);
+  const now = new Date();
+
+  const updated = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(eq(campaigns.id, id))
+      .for('update');
+
+    if (!existing) return false;
+
+    await tx
+      .update(campaigns)
+      .set({ name: cleaned.name, updatedAt: now })
+      .where(eq(campaigns.id, id));
+
+    await tx.delete(campaignScenes).where(eq(campaignScenes.campaignId, id));
+    await insertSceneTree(tx, id, cleaned.scenes);
+    return true;
+  });
+
+  if (!updated) return null;
+  return loadCampaign(id);
 }
 
-export function copyCampaign(id: string): Campaign | null {
-  const source = campaigns.find((campaign) => campaign.id === id);
+export async function deleteCampaign(id: string): Promise<boolean> {
+  const deleted = await db
+    .delete(campaigns)
+    .where(eq(campaigns.id, id))
+    .returning({ id: campaigns.id });
+  return deleted.length > 0;
+}
+
+export async function copyCampaign(id: string): Promise<Campaign | null> {
+  const source = await loadCampaign(id);
   if (!source) return null;
 
-  const now = Date.now();
-  const copy: Campaign = {
+  const copyId = crypto.randomUUID();
+  const now = new Date();
+  const scenes = source.scenes.map((scene) => ({
+    ...scene,
     id: crypto.randomUUID(),
-    name: `${source.name} Copy`,
-    scenes: source.scenes.map((scene) => ({
-      ...scene,
+    grid: scene.grid ? { ...scene.grid } : null,
+    tokens: scene.tokens.map((token) => ({
+      ...token,
       id: crypto.randomUUID(),
-      grid: scene.grid ? { ...scene.grid } : null,
-      tokens: scene.tokens.map((token) => ({
-        ...token,
-        id: crypto.randomUUID(),
-        cell: token.cell ? { ...token.cell } : null,
-      })),
+      cell: token.cell ? { ...token.cell } : null,
     })),
-    createdAt: now,
-    updatedAt: now,
-  };
+  }));
 
-  campaigns.push(copy);
-  return structuredClone(copy);
+  await db.transaction(async (tx) => {
+    await tx.insert(campaigns).values({
+      id: copyId,
+      name: `${source.name} Copy`,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await insertSceneTree(tx, copyId, scenes);
+  });
+
+  return loadCampaign(copyId);
 }

@@ -1,11 +1,13 @@
 # GMTool Alpha — Implementation Notes
 
-**Status:** Implemented local alpha plus campaign, grid, and token shell  
-**Scope:** Campaign dashboard, multi-scene builder, live scene switching, scene grid, and
-grid-aligned token placement
+**Status:** Implemented local alpha with PostgreSQL persistence
 
-> **Persistence note:** Campaigns and live rooms are stored in memory only. Restarting the
-> server clears both. The campaign API shape is ready for a database-backed store later.
+**Scope:** Campaign dashboard, multi-scene builder, live scene switching, scene grid,
+grid-aligned token placement, and restart-safe sessions
+
+> **Persistence note:** Campaigns, scenes, tokens, live rooms, and participants are stored in
+> PostgreSQL. Pointer positions, socket IDs, connection state, and pings remain in memory and
+> reset on restart.
 
 ---
 
@@ -21,18 +23,19 @@ grid-aligned token placement
 | Language | TypeScript |
 | Styling | Plain CSS |
 | Uploads | Multer 2 + local `uploads/` folder |
-| State | In-memory; no database |
+| Database | PostgreSQL 16 |
+| ORM / migrations | Drizzle ORM + drizzle-kit |
 | Auth | GM passphrase + HMAC-signed HttpOnly cookie |
 
 ### Why this stack
 
-- One repository, one local server, one client dev server.
-- No database or migration work for an alpha that intentionally loses state on restart.
+- One repository, one local server, one client dev server, and one Docker Postgres service.
+- PostgreSQL enforces the data rules that matter: one active room, unique visible token squares,
+  one player token per scene, and cascading campaign deletes.
+- Drizzle keeps the schema in TypeScript and generates reviewable SQL migrations.
 - Socket.IO gives presence, reconnection, rooms, and pointer broadcasts without a custom
   WebSocket protocol.
 - Vite + React keeps the real-time scene UI straightforward.
-- The server and domain types are small enough to migrate to a database and a different host
-  later without rewriting the UI.
 
 Astro was considered, but the alpha is a real-time application shell rather than a content
 site. Astro can wrap the React client later if the dashboard or marketing pages need it.
@@ -44,9 +47,14 @@ site. Astro can wrap the React client later if the dashboard or marketing pages 
 ```text
 server/
   auth.ts        passphrase check, signed GM cookie, cookie parsing
-  campaigns.ts   temporary in-memory campaign store
-  index.ts       Express API, upload handling, static client serving
-  rooms.ts       active room, scenes, tokens, participants, pointers
+  campaigns.ts   PostgreSQL campaign repository and validation
+  db/
+    client.ts    Postgres pool and Drizzle client
+    schema.ts    Tables, enums, constraints, and partial indexes
+    migrate.ts   Migration runner
+    migrations/  Generated Drizzle SQL migrations
+  index.ts       Express API, migrations, startup, upload handling, static client serving
+  rooms.ts       database-backed rooms plus in-memory socket/pointer presence
   socket.ts      Socket.IO join, presence, pointer, token, grid, disconnect handling
 
 src/
@@ -87,25 +95,31 @@ Browser (GM) ───── HTTPS/HTTP + WebSocket ─────┐
                                               │
 Browser (Player) ── HTTPS/HTTP + WebSocket ───┼── Express + Socket.IO
                                               │        │
-                                              │        ├── in-memory activeRoom
+                                              │        ├── active-room cache
+                                              │        ├── socket/pointer maps
+                                              │        ├── PostgreSQL
                                               │        └── uploads/ (local files)
                                               │
                                          Vite proxy in development
 ```
 
-- The server owns the only canonical room state.
-- There is exactly one active room per server process.
+- PostgreSQL is the durable source of truth for campaigns and live rooms.
+- The active-room aggregate is cached in memory for fast socket broadcasts.
+- There is exactly one active room, enforced by a partial unique index.
 - A new room ends the previous room and invalidates its join link.
-- Pointer updates are ephemeral and never written to disk.
-- Room state disappears when the server process stops.
+- Pointer updates and socket IDs are ephemeral and never written to the database.
+- The active room, scene index, tokens, and participants survive a server restart.
 
 ---
 
-## 4. In-memory model
+## 4. State model
+
+The API-facing aggregate is loaded from PostgreSQL into the active-room cache.
 
 ```ts
 Room {
   id: string
+  campaignId: string | null
   title: string
   pin: string
   scenes: RoomScene[]
@@ -119,6 +133,8 @@ Room {
 }
 
 RoomScene {
+  id: string
+  position: number
   title: string
   background: SceneBackground
   grid: GridSettings | null
@@ -159,14 +175,38 @@ TokenInfo {
 
 ServerParticipant {
   id: string
-  token: string
+  tokenHash: string   // SHA-256 of the browser's rejoin token
   name: string
   color: string
   shape: PlayerShape
-  socketId: string | null
+  socketId: string | null   // in-memory only
   joinedAt: number
 }
 ```
+
+### Durable tables
+
+```text
+campaigns
+campaign_scenes
+campaign_tokens
+
+rooms
+room_scenes
+room_participants
+room_tokens
+```
+
+- `campaigns` and `rooms` hold top-level metadata and timestamps.
+- `background` and `grid` are typed `jsonb` value objects.
+- Scenes and tokens carry explicit `position` values to preserve UI order.
+- `rooms_one_active_unique` is a partial unique index on active rooms.
+- `room_tokens_visible_cell_unique` prevents visible tokens from sharing a square.
+- `room_tokens_player_per_scene_unique` allows one player token per participant per scene.
+- `room_participants.token_hash` stores only the SHA-256 digest of the rejoin token.
+- `rooms`, `room_scenes`, `room_participants`, and `room_tokens` cascade on delete.
+
+Pointers, `socketId`, `gmSocketId`, and connected flags are never persisted.
 
 The public room shape omits participant tokens and the PIN, but includes the active scene,
 scene summaries, grid visibility, and the active scene's tokens:
@@ -201,7 +241,7 @@ to a scene restores that scene's token placements.
 | `GET` | `/api/campaigns/:id` | GM | Load a campaign and its scenes |
 | `POST` | `/api/campaigns` | GM | Create a campaign |
 | `PUT` | `/api/campaigns/:id` | GM | Update a campaign |
-| `DELETE` | `/api/campaigns/:id` | GM | Delete a campaign from the in-memory store |
+| `DELETE` | `/api/campaigns/:id` | GM | Delete a campaign and its scenes from PostgreSQL |
 | `POST` | `/api/campaigns/:id/copy` | GM | Duplicate a campaign and its scenes |
 | `POST` | `/api/campaigns/:id/launch` | GM | Create a live room from the campaign scenes |
 | `POST` | `/api/uploads` | GM | Upload a scene image; returns a `/uploads/...` URL |
@@ -214,6 +254,22 @@ to a scene restores that scene's token placements.
 Uploads are `multipart/form-data` with an `image` field. Accepted types are PNG, JPEG, and WebP;
 files are limited to 10 MB. Campaign scene backgrounds reference either an uploaded URL or a
 built-in snow/grass/dungeon preset.
+
+### Database and migrations
+
+- `DATABASE_URL` points at PostgreSQL. The included Compose service uses port `5433`.
+- `server/db/schema.ts` is the schema source of truth.
+- `npm run db:generate` creates a new SQL migration after schema changes.
+- `npm run db:migrate` applies pending migrations.
+- The server also applies pending migrations before it starts listening.
+- `GET /api/health` runs `select 1` and returns `503` if Postgres is unavailable.
+- Campaign updates replace the campaign's scene/token tree inside one transaction.
+- Room, token, reveal-push, scene-switch, join, launch, and end operations use transactions.
+- Room mutations lock the active room row with `SELECT ... FOR UPDATE`.
+- The `room_tokens_visible_cell_unique` index is the final occupancy authority. The service
+  checks occupancy for a friendly message; a PostgreSQL `23505` violation is translated to the
+  same error.
+- Revealing a hidden token moves overlapping player tokens before setting `hidden = false`.
 
 ---
 

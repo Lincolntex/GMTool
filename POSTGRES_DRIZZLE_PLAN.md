@@ -1,6 +1,6 @@
 # Postgres + Drizzle Implementation Plan
 
-Status: Proposed
+Status: Implemented
 
 ## Goal
 
@@ -61,7 +61,7 @@ Use `drizzle-kit generate` and committed SQL migrations. Do not use `drizzle-kit
 `.env.example`:
 
 ```env
-DATABASE_URL=postgres://gmtool:gmtool@localhost:5432/gmtool
+DATABASE_URL=postgres://gmtool:gmtool@localhost:5433/gmtool
 GM_SECRET=replace-with-a-long-random-string
 ```
 
@@ -80,7 +80,7 @@ services:
       POSTGRES_PASSWORD: gmtool
       POSTGRES_DB: gmtool
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - gmtool_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -180,6 +180,7 @@ UNIQUE (campaign_id, position)
 
 - `id uuid primary key`
 - `scene_id uuid not null references campaign_scenes(id) on delete cascade`
+- `position integer not null`
 - `kind token_kind not null`
 - `label text not null`
 - `color text not null`
@@ -267,6 +268,7 @@ Do not store the raw participant bearer token. Generate the token on join, retur
 
 - `id uuid primary key`
 - `scene_id uuid not null references room_scenes(id) on delete cascade`
+- `position integer not null`
 - `kind token_kind not null`
 - `label text not null`
 - `color text not null`
@@ -625,7 +627,7 @@ Keep this scoped to the campaign ID. Do not allow a scene or token ID from anoth
 Add a test database separate from the development database, for example:
 
 ```env
-DATABASE_URL_TEST=postgres://gmtool:gmtool@localhost:5432/gmtool_test
+DATABASE_URL_TEST=postgres://gmtool:gmtool@localhost:5433/gmtool_test
 ```
 
 Test cases:
@@ -769,3 +771,19 @@ The migration is complete when:
 - The existing API and Socket.IO payloads are unchanged.
 - `npm run typecheck`, `npm run build`, `npm run db:check`, and `npm audit --omit=dev` pass.
 - Browser smoke tests pass with no console errors.
+
+---
+
+## 11. Implementation notes
+
+- The Compose database publishes **5433** to avoid conflicting with an existing local
+  PostgreSQL installation on 5432.
+- Scene and token rows carry explicit `position` values so UI ordering survives database reads.
+- Participant rejoin tokens are stored as SHA-256 hashes; the raw token only goes to the browser.
+- The active room is cached in memory after hydration, but PostgreSQL remains authoritative.
+- Room write transactions lock the active room row with `SELECT ... FOR UPDATE`.
+- Ended rooms remain in the database for future history features; only one room can be active.
+- The initial migration is `server/db/migrations/0000_rich_chameleon.sql`.
+- Verified end to end: campaign CRUD/copy, multi-scene launch, player join and rejoin after a
+  server restart, scene switching with player-token creation, hidden-token overlap, and reveal
+  push.
