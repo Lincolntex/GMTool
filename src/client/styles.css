@@ -558,7 +558,7 @@ p {
   box-shadow: var(--shadow);
 }
 
-.scene-preview-frame {
+.scene-preview-viewport {
   position: relative;
   width: 100%;
   margin-inline: auto;
@@ -566,6 +566,25 @@ p {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9px;
   background: #080c11;
+}
+
+.scene-preview-viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scene-preview-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #05080c;
+  touch-action: none;
+  user-select: none;
+  transform-origin: 50% 50%;
+  transform:
+    translate3d(var(--scene-pan-x, 0px), var(--scene-pan-y, 0px), 0)
+    scale(var(--scene-zoom, 1));
 }
 
 .scene-preview-frame img {
@@ -584,10 +603,23 @@ p {
   cursor: crosshair;
 }
 
+.scene-preview-viewport.is-panning,
+.scene-preview-viewport.is-panning .scene-preview-frame {
+  cursor: grabbing;
+}
+
+.scene-preview-viewport.is-space-held.is-zoomed .scene-preview-frame {
+  cursor: grab;
+}
+
+.scene-preview-viewport.is-space-held.is-zoomed .scene-preview-frame.placing-token {
+  cursor: crosshair;
+}
+
 .scene-preview-hint {
   position: absolute;
   left: 50%;
-  bottom: 10px;
+  top: 10px;
   z-index: 5;
   padding: 6px 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);

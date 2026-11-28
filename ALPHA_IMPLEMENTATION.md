@@ -337,6 +337,10 @@ scene regardless of window size or image aspect ratio.
 - On narrow panes, the builder stacks the scene preview below the editor before the editor can
   collapse below the width of its own controls. The editor column also has a minimum width so its
   file input and token rows cannot spill into the preview.
+- The builder preview reuses the live scene camera math for local zoom and pan. Shift+wheel,
+  Shift+= / Shift+-, Shift+0, arrow-key panning, middle-mouse drag, Space+drag, and the
+  `-` / percentage / `+` cluster work the same way as the session view. Zoom is view-only, resets
+  on scene or background changes, and never changes the campaign or marks it dirty.
 - **Exit** and the top-bar **Dashboard** link return to the GM dashboard without saving. When there
   are unsaved changes, both ask for confirmation before discarding them. Dirty state is a deep
   comparison against the loaded campaign (or the initial defaults for a new campaign), so reverting
