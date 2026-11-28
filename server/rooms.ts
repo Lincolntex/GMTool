@@ -421,7 +421,8 @@ export async function addParticipant(
   const cleanName = name.trim().slice(0, 24);
   if (!cleanName) throw new Error('Display name is required.');
   if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Invalid marker color.');
-  if (RESERVED_COLORS.has(color.toLowerCase())) {
+  const normalizedColor = color.toLowerCase();
+  if (RESERVED_COLORS.has(normalizedColor)) {
     throw new Error('That color is reserved for the GM.');
   }
   if (!isPlayerShape(shape)) throw new Error('Choose a valid token shape.');
@@ -429,12 +430,21 @@ export async function addParticipant(
     throw new Error('This session is full.');
   }
 
+  for (const existing of room.participants.values()) {
+    if (existing.color.toLowerCase() === normalizedColor) {
+      throw new Error('That color is already in use. Choose another.');
+    }
+    if (existing.shape === shape) {
+      throw new Error('That token shape is already in use. Choose another.');
+    }
+  }
+
   const rawToken = crypto.randomBytes(32).toString('hex');
   const participant: ServerParticipant = {
     id: crypto.randomUUID(),
     tokenHash: hashToken(rawToken),
     name: cleanName,
-    color,
+    color: normalizedColor,
     shape,
     socketId: null,
     joinedAt: Date.now(),
@@ -452,35 +462,43 @@ export async function addParticipant(
     hidden: false,
   };
 
-  await db.transaction(async (tx) => {
-    await lockRoom(tx, room.id);
-    await tx.insert(roomParticipants).values({
-      id: participant.id,
-      roomId: room.id,
-      tokenHash: participant.tokenHash,
-      name: participant.name,
-      color: participant.color,
-      shape: participant.shape,
-      joinedAt: new Date(participant.joinedAt),
-    });
-
-    const position = await nextTokenPosition(tx, scene.id);
-    await tx.insert(roomTokens).values({
-      id: playerToken.id,
-      sceneId: scene.id,
-      position,
-      kind: 'player',
-      label: playerToken.label,
-      color: playerToken.color,
-      shape: playerToken.shape,
-      ownerParticipantId: participant.id,
-      cellCol: null,
-      cellRow: null,
-      hidden: false,
-    });
-  });
-
+  // Reserve the marker in memory before awaiting the insert so two concurrent
+  // joins cannot claim the same color or shape.
   room.participants.set(participant.id, participant);
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockRoom(tx, room.id);
+      await tx.insert(roomParticipants).values({
+        id: participant.id,
+        roomId: room.id,
+        tokenHash: participant.tokenHash,
+        name: participant.name,
+        color: participant.color,
+        shape: participant.shape,
+        joinedAt: new Date(participant.joinedAt),
+      });
+
+      const position = await nextTokenPosition(tx, scene.id);
+      await tx.insert(roomTokens).values({
+        id: playerToken.id,
+        sceneId: scene.id,
+        position,
+        kind: 'player',
+        label: playerToken.label,
+        color: playerToken.color,
+        shape: playerToken.shape,
+        ownerParticipantId: participant.id,
+        cellCol: null,
+        cellRow: null,
+        hidden: false,
+      });
+    });
+  } catch (error) {
+    room.participants.delete(participant.id);
+    throw error;
+  }
+
   scene.tokens.push(playerToken);
   return { participant, token: rawToken };
 }

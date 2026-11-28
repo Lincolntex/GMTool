@@ -141,7 +141,8 @@ The Express server serves the built client and the API from one process.
     move. Press **Backspace** or **Delete**, or click the **×**, to return it to the drawer.
 17. Click **Join session**, then **Copy link + PIN**.
 18. Open the join link in another browser window, incognito window, or a second browser.
-19. Enter the PIN, a display name, a pointer color, and a token shape.
+19. Enter the PIN, a display name, a pointer color, and a token shape. Colors and shapes already
+    claimed by another player are disabled.
 20. Open the **Character** drawer and click the token marker to place your token. Character stats
     are shown inside the Character drawer. **Notes** remains available on the right.
 21. Open the player **Scene** drawer to see placed visible tokens. Click a token row to ping it
@@ -155,8 +156,8 @@ The Express server serves the built client and the API from one process.
     nothing. This is intentional.
 
 To test more players, repeat the join flow in more browser windows. Each participant needs a
-distinct display name and color. Players can only place, move, and remove their own token; the
-GM can control every token.
+display name plus a color and shape that are not already claimed; the join screen disables used
+markers. Players can only place, move, and remove their own token; the GM can control every token.
 
 ---
 
@@ -230,7 +231,8 @@ actions.
   The icon rails start below the top bar, and each drawer opens directly from its rail. Drawers
   overlay the header and scene map without resizing either.
 - Join link plus 6-digit PIN.
-- Player display name, pointer color, and independent token shape.
+- Player display name with a pointer color and token shape that are unique to that player. The
+  join screen disables colors and shapes already claimed by another participant.
 - Live participant strip with color-and-shape markers and online/offline state.
 - Shift+click ping and Shift+drag pointer, over the scene only.
 - Color-plus-shape identification that does not rely on red/green distinction.

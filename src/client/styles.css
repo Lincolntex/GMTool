@@ -2265,11 +2265,31 @@ input[type="file"]::file-selector-button {
 }
 
 .color-swatch {
+  position: relative;
   width: 34px;
   height: 34px;
   border: 2px solid transparent;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.color-swatch:disabled,
+.shape-swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.color-swatch:disabled::after,
+.shape-swatch:disabled::after {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  left: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(232, 238, 246, 0.8);
+  content: '';
+  transform: rotate(-45deg);
 }
 
 .color-swatch.selected {
@@ -2285,6 +2305,7 @@ input[type="file"]::file-selector-button {
 }
 
 .shape-swatch {
+  position: relative;
   display: grid;
   width: 44px;
   height: 44px;
@@ -2295,7 +2316,7 @@ input[type="file"]::file-selector-button {
   background: #0d131b;
 }
 
-.shape-swatch:hover {
+.shape-swatch:hover:not(:disabled) {
   border-color: var(--muted);
 }
 
