@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Minus, Plus } from '@phosphor-icons/react';
+import { CornersIn, CornersOut, Minus, Plus } from '@phosphor-icons/react';
 import {
   cellAtPoint,
   cellCenter,
@@ -67,8 +67,12 @@ export function ScenePreview({
   const [panning, setPanning] = useState(false);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [zoomAnnouncement, setZoomAnnouncement] = useState('');
+  const [maximized, setMaximized] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const maximizeButtonRef = useRef<HTMLButtonElement>(null);
+  const wasMaximizedRef = useRef(false);
   const cameraRef = useRef<SceneCamera>(createDefaultCamera());
   const panRef = useRef<PanState | null>(null);
   const spaceHeldRef = useRef(false);
@@ -131,6 +135,39 @@ export function ScenePreview({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!maximized) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [maximized]);
+
+  useEffect(() => {
+    if (maximized) {
+      viewportRef.current?.focus({ preventScroll: true });
+    } else if (wasMaximizedRef.current) {
+      maximizeButtonRef.current?.focus({ preventScroll: true });
+    }
+    wasMaximizedRef.current = maximized;
+  }, [maximized]);
+
+  useEffect(() => {
+    if (!maximized) return;
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'Escape') return;
+      // Let the placement handler cancel placement first.
+      if (placingTokenId) return;
+      event.preventDefault();
+      setMaximized(false);
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [maximized, placingTokenId]);
 
   useEffect(() => {
     function releaseSpace(): void {
@@ -321,6 +358,41 @@ export function ScenePreview({
     if (!spaceHeldRef.current) return;
     spaceHeldRef.current = false;
     setSpaceHeld(false);
+  }
+
+  function toggleMaximized(): void {
+    setMaximized((previous) => !previous);
+  }
+
+  function closeMaximized(): void {
+    setMaximized(false);
+  }
+
+  function handlePanelKeyDown(event: ReactKeyboardEvent<HTMLElement>): void {
+    if (!maximized || event.key !== 'Tab') return;
+
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const focusable = [
+      ...panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter(
+      (element) =>
+        !element.hasAttribute('disabled') && element.getClientRects().length > 0,
+    );
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function handleViewportPointerDownCapture(
@@ -558,7 +630,11 @@ export function ScenePreview({
     onStartPlacement(tokenId);
   }
 
-  const maxHeight = expanded ? 720 : 520;
+  const previewHeightCap = maximized
+    ? 'calc(100dvh - 200px)'
+    : expanded
+      ? 'min(800px, calc(100dvh - 180px))'
+      : 'min(600px, calc(100dvh - 180px))';
   const ghostOccupied =
     selectedToken && hoverCell ? tokenAt(hoverCell, selectedToken.id) : false;
   const frameStyle = {
@@ -577,194 +653,235 @@ export function ScenePreview({
     .join(' ');
 
   return (
-    <section className="scene-preview-panel">
-      <div
-        ref={viewportRef}
-        className={viewportClassName}
-        style={{
-          width: `min(100%, calc(${maxHeight}px * ${aspect}))`,
-          aspectRatio: String(aspect),
-        }}
-        tabIndex={0}
-        aria-label={`${scene.title} preview viewport`}
-        aria-describedby="scene-preview-zoom-help"
-        onKeyDown={handleViewportKeyDown}
-        onKeyUp={handleViewportKeyUp}
-        onBlur={handleViewportBlur}
-        onPointerDownCapture={handleViewportPointerDownCapture}
-        onPointerDown={handleViewportPointerDown}
-        onPointerMove={handleViewportPointerMove}
-        onPointerUp={handleViewportPointerUp}
-        onPointerCancel={(event) => {
-          if (panRef.current) finishPan(event);
-        }}
+    <>
+      {maximized ? (
+        <div
+          className="scene-preview-backdrop"
+          aria-hidden="true"
+          onClick={closeMaximized}
+        />
+      ) : null}
+
+      <section
+        ref={panelRef}
+        className={maximized ? 'scene-preview-panel is-maximized' : 'scene-preview-panel'}
+        role={maximized ? 'dialog' : undefined}
+        aria-modal={maximized ? 'true' : undefined}
+        aria-labelledby={maximized ? 'scene-preview-title' : undefined}
+        onKeyDown={handlePanelKeyDown}
       >
         <div
-          ref={frameRef}
-          className={[
-            'scene-preview-frame',
-            placingTokenId ? 'placing-token' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          style={frameStyle}
-          onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHoverCell(null)}
-          onClick={handleFrameClick}
+          ref={viewportRef}
+          className={viewportClassName}
+          style={{
+            width: `min(100%, calc(${previewHeightCap} * ${aspect}))`,
+            aspectRatio: String(aspect),
+          }}
+          tabIndex={0}
+          aria-label={`${scene.title} preview viewport`}
+          aria-describedby="scene-preview-zoom-help"
+          onKeyDown={handleViewportKeyDown}
+          onKeyUp={handleViewportKeyUp}
+          onBlur={handleViewportBlur}
+          onPointerDownCapture={handleViewportPointerDownCapture}
+          onPointerDown={handleViewportPointerDown}
+          onPointerMove={handleViewportPointerMove}
+          onPointerUp={handleViewportPointerUp}
+          onPointerCancel={(event) => {
+            if (panRef.current) finishPan(event);
+          }}
         >
-          {background.type === 'upload' ? (
-            <img
-              src={background.url}
-              alt=""
-              draggable={false}
-              onDragStart={(event) => event.preventDefault()}
-              onLoad={(event) => {
-                const image = event.currentTarget;
-                if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                  applyAspect(image.naturalWidth / image.naturalHeight);
-                }
-              }}
+          <div
+            ref={frameRef}
+            className={[
+              'scene-preview-frame',
+              placingTokenId ? 'placing-token' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            style={frameStyle}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={() => setHoverCell(null)}
+            onClick={handleFrameClick}
+          >
+            {background.type === 'upload' ? (
+              <img
+                src={background.url}
+                alt=""
+                draggable={false}
+                onDragStart={(event) => event.preventDefault()}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    applyAspect(image.naturalWidth / image.naturalHeight);
+                  }
+                }}
+              />
+            ) : (
+              <div
+                className={`scene-preset preset-${background.preset}`}
+                aria-hidden="true"
+              />
+            )}
+
+            <GridOverlay
+              grid={scene.grid}
+              aspect={aspect}
+              lineWidth={1 / camera.scale}
             />
-          ) : (
-            <div className={`scene-preset preset-${background.preset}`} aria-hidden="true" />
-          )}
 
-          <GridOverlay
-            grid={scene.grid}
-            aspect={aspect}
-            lineWidth={1 / camera.scale}
-          />
+            {geometry ? (
+              <div className="token-layer">
+                {scene.tokens.map((token) => {
+                  if (!token.cell) return null;
+                  const center = cellCenter(geometry, token.cell);
+                  const size = tokenDiameterPercent(geometry);
+                  const selected = placingTokenId === token.id;
 
-          {geometry ? (
-            <div className="token-layer">
-              {scene.tokens.map((token) => {
-                if (!token.cell) return null;
-                const center = cellCenter(geometry, token.cell);
-                const size = tokenDiameterPercent(geometry);
-                const selected = placingTokenId === token.id;
+                  return (
+                    <div
+                      className={[
+                        'board-token-wrap',
+                        selected ? 'selected' : '',
+                        token.hidden ? 'is-hidden' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      key={token.id}
+                      style={{
+                        left: `${center.x * 100}%`,
+                        top: `${center.y * 100}%`,
+                        width: `${size}%`,
+                      }}
+                    >
+                      <button
+                        className="board-token"
+                        type="button"
+                        title={token.label}
+                        aria-label={`${token.label} token`}
+                        style={{ '--token-color': token.color } as CSSProperties}
+                        onClick={(event) => handleTokenClick(event, token.id)}
+                      >
+                        <TokenGlyph
+                          shape={tokenShapeForToken(token)}
+                          color={token.color}
+                          label={tokenInitials(token.label)}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
 
-                return (
+                {selectedToken && hoverCell ? (
                   <div
-                    className={[
-                      'board-token-wrap',
-                      selected ? 'selected' : '',
-                      token.hidden ? 'is-hidden' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    key={token.id}
+                    className={
+                      ghostOccupied
+                        ? 'board-token-wrap token-ghost token-ghost-invalid'
+                        : 'board-token-wrap token-ghost'
+                    }
                     style={{
-                      left: `${center.x * 100}%`,
-                      top: `${center.y * 100}%`,
-                      width: `${size}%`,
+                      left: `${cellCenter(geometry, hoverCell).x * 100}%`,
+                      top: `${cellCenter(geometry, hoverCell).y * 100}%`,
+                      width: `${tokenDiameterPercent(geometry)}%`,
                     }}
+                    aria-hidden="true"
                   >
-                    <button
+                    <div
                       className="board-token"
-                      type="button"
-                      title={token.label}
-                      aria-label={`${token.label} token`}
-                      style={{ '--token-color': token.color } as CSSProperties}
-                      onClick={(event) => handleTokenClick(event, token.id)}
+                      style={
+                        { '--token-color': selectedToken.color } as CSSProperties
+                      }
                     >
                       <TokenGlyph
-                        shape={tokenShapeForToken(token)}
-                        color={token.color}
-                        label={tokenInitials(token.label)}
+                        shape={tokenShapeForToken(selectedToken)}
+                        color={selectedToken.color}
+                        label={tokenInitials(selectedToken.label)}
                       />
-                    </button>
+                    </div>
                   </div>
-                );
-              })}
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
-              {selectedToken && hoverCell ? (
-                <div
-                  className={
-                    ghostOccupied
-                      ? 'board-token-wrap token-ghost token-ghost-invalid'
-                      : 'board-token-wrap token-ghost'
-                  }
-                  style={{
-                    left: `${cellCenter(geometry, hoverCell).x * 100}%`,
-                    top: `${cellCenter(geometry, hoverCell).y * 100}%`,
-                    width: `${tokenDiameterPercent(geometry)}%`,
-                  }}
-                  aria-hidden="true"
-                >
-                  <div
-                    className="board-token"
-                    style={{ '--token-color': selectedToken.color } as CSSProperties}
-                  >
-                    <TokenGlyph
-                      shape={tokenShapeForToken(selectedToken)}
-                      color={selectedToken.color}
-                      label={tokenInitials(selectedToken.label)}
-                    />
-                  </div>
-                </div>
-              ) : null}
+          {selectedToken ? (
+            <div className="scene-preview-hint">
+              Click a square to place {selectedToken.label}. Escape cancels.
             </div>
           ) : null}
-        </div>
 
-        {selectedToken ? (
-          <div className="scene-preview-hint">
-            Click a square to place {selectedToken.label}. Escape cancels.
+          <div className="scene-zoom-controls" role="group" aria-label="Scene zoom">
+            <button
+              className="scene-zoom-button"
+              type="button"
+              aria-label="Zoom out"
+              title="Zoom out (Shift+-)"
+              disabled={camera.scale <= MIN_SCENE_SCALE}
+              onClick={() =>
+                zoomAt(cameraRef.current.scale / SCENE_KEY_ZOOM_FACTOR)
+              }
+            >
+              <Minus size={14} weight="bold" aria-hidden="true" />
+            </button>
+
+            <button
+              className="scene-zoom-level"
+              type="button"
+              aria-label={`Reset zoom, currently ${zoomPercent}%`}
+              title="Reset zoom to 100% (Shift+0)"
+              onClick={resetCamera}
+            >
+              {zoomPercent}%
+            </button>
+
+            <button
+              className="scene-zoom-button"
+              type="button"
+              aria-label="Zoom in"
+              title="Zoom in (Shift+=)"
+              disabled={camera.scale >= MAX_SCENE_SCALE}
+              onClick={() =>
+                zoomAt(cameraRef.current.scale * SCENE_KEY_ZOOM_FACTOR)
+              }
+            >
+              <Plus size={14} weight="bold" aria-hidden="true" />
+            </button>
           </div>
-        ) : null}
+        </div>
 
-        <div className="scene-zoom-controls" role="group" aria-label="Scene zoom">
-          <button
-            className="scene-zoom-button"
-            type="button"
-            aria-label="Zoom out"
-            title="Zoom out (Shift+-)"
-            disabled={camera.scale <= MIN_SCENE_SCALE}
-            onClick={() =>
-              zoomAt(cameraRef.current.scale / SCENE_KEY_ZOOM_FACTOR)
-            }
-          >
-            <Minus size={14} weight="bold" aria-hidden="true" />
-          </button>
+        <p id="scene-preview-zoom-help" className="sr-only">
+          Use Shift plus the mouse wheel, or Shift plus or minus, to zoom. Press
+          Shift+0 to reset. Use the arrow keys to pan when zoomed.
+        </p>
 
-          <button
-            className="scene-zoom-level"
-            type="button"
-            aria-label={`Reset zoom, currently ${zoomPercent}%`}
-            title="Reset zoom to 100% (Shift+0)"
-            onClick={resetCamera}
-          >
-            {zoomPercent}%
-          </button>
+        <span className="sr-only" aria-live="polite">
+          {zoomAnnouncement}
+        </span>
 
+        <div className="scene-preview-meta">
+          <div>
+            <span className="eyebrow">Preview</span>
+            <h2 id="scene-preview-title">{scene.title}</h2>
+          </div>
           <button
-            className="scene-zoom-button"
+            ref={maximizeButtonRef}
+            className="button ghost small scene-preview-maximize"
             type="button"
-            aria-label="Zoom in"
-            title="Zoom in (Shift+=)"
-            disabled={camera.scale >= MAX_SCENE_SCALE}
-            onClick={() =>
-              zoomAt(cameraRef.current.scale * SCENE_KEY_ZOOM_FACTOR)
-            }
+            aria-haspopup="dialog"
+            aria-expanded={maximized}
+            aria-label={maximized ? 'Restore preview size' : 'Maximize preview'}
+            title={maximized ? 'Restore preview size' : 'Maximize preview'}
+            onClick={toggleMaximized}
           >
-            <Plus size={14} weight="bold" aria-hidden="true" />
+            {maximized ? (
+              <CornersIn size={14} weight="bold" aria-hidden="true" />
+            ) : (
+              <CornersOut size={14} weight="bold" aria-hidden="true" />
+            )}
+            {maximized ? 'Restore' : 'Maximize'}
           </button>
         </div>
-      </div>
-
-      <p id="scene-preview-zoom-help" className="sr-only">
-        Use Shift plus the mouse wheel, or Shift plus or minus, to zoom. Press
-        Shift+0 to reset. Use the arrow keys to pan when zoomed.
-      </p>
-
-      <span className="sr-only" aria-live="polite">
-        {zoomAnnouncement}
-      </span>
-
-      <div className="scene-preview-meta">
-        <span className="eyebrow">Preview</span>
-        <h2>{scene.title}</h2>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

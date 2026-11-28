@@ -341,6 +341,10 @@ scene regardless of window size or image aspect ratio.
   Shift+= / Shift+-, Shift+0, arrow-key panning, middle-mouse drag, Space+drag, and the
   `-` / percentage / `+` cluster work the same way as the session view. Zoom is view-only, resets
   on scene or background changes, and never changes the campaign or marks it dirty.
+- The preview has a **Maximize / Restore** button. Maximizing opens a near-fullscreen dialog with
+  the same camera and token-placement behavior; Escape, the Restore button, or the backdrop closes
+  it, and focus returns to the toggle. Grid previews default to up to 800px tall (600px without a
+  grid), and the builder and preview columns are wider than before.
 - **Exit** and the top-bar **Dashboard** link return to the GM dashboard without saving. When there
   are unsaved changes, both ask for confirmation before discarding them. Dirty state is a deep
   comparison against the loaded campaign (or the initial defaults for a new campaign), so reverting

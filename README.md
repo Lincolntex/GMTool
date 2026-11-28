@@ -199,6 +199,8 @@ actions.
 - The builder preview uses the same local camera as the live scene: Shift+wheel, Shift+= / Shift+-,
   Shift+0, arrow-key panning, middle-mouse or Space+drag panning, and the `-` / percentage / `+`
   control cluster. Zoom stays local to the builder and resets on scene or background changes.
+  A **Maximize** button opens a near-fullscreen preview, and grid previews default to up to 800px
+  tall.
 - Scene background upload or snow/grass/dungeon presets.
 - Optional per-scene square grid with a size slider, single-step arrows, offset nudges, and
   alignment reset.
