@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ShapeIcon } from '../components/ShapeIcon';
 import { api } from '../lib/api';
@@ -44,31 +44,71 @@ export function JoinPage() {
 
   const existingToken = roomId ? getParticipantToken(roomId) : null;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRoom() {
+  const loadRoom = useCallback(
+    async (initial: boolean) => {
       if (!roomId) {
-        setError('Missing session link.');
-        setLoading(false);
+        if (initial) {
+          setError('Missing session link.');
+          setLoading(false);
+        }
         return;
       }
 
       try {
         const response = await api<RoomResponse>(`/api/rooms/${roomId}`);
-        if (!cancelled) setRoom(response.room);
+        setRoom(response.room);
       } catch (loadError) {
-        if (!cancelled) setError(errorMessage(loadError));
+        if (initial) setError(errorMessage(loadError));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (initial) setLoading(false);
       }
-    }
+    },
+    [roomId],
+  );
 
-    void loadRoom();
+  useEffect(() => {
+    void loadRoom(true);
+    const timer = window.setInterval(() => void loadRoom(false), 4000);
+    const handleFocus = () => void loadRoom(false);
+    window.addEventListener('focus', handleFocus);
     return () => {
-      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [roomId]);
+  }, [loadRoom]);
+
+  const usedColors = new Set(
+    room?.participants.map((participant) => participant.color.toLowerCase()) ?? [],
+  );
+  const usedShapes = new Set(
+    room?.participants.map((participant) => participant.shape) ?? [],
+  );
+  const noColorAvailable = COLORS.every((option) =>
+    usedColors.has(option.toLowerCase()),
+  );
+  const noShapeAvailable = PLAYER_SHAPES.every((option) => usedShapes.has(option));
+  const noMarkerAvailable = noColorAvailable || noShapeAvailable;
+
+  useEffect(() => {
+    if (!room) return;
+    const takenColors = new Set(
+      room.participants.map((participant) => participant.color.toLowerCase()),
+    );
+    const takenShapes = new Set(
+      room.participants.map((participant) => participant.shape),
+    );
+
+    setColor((current) =>
+      takenColors.has(current.toLowerCase())
+        ? COLORS.find((option) => !takenColors.has(option.toLowerCase())) ?? current
+        : current,
+    );
+    setShape((current) =>
+      takenShapes.has(current)
+        ? PLAYER_SHAPES.find((option) => !takenShapes.has(option)) ?? current
+        : current,
+    );
+  }, [room]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -85,6 +125,7 @@ export function JoinPage() {
       navigate(`/session/${roomId}`, { replace: true });
     } catch (joinError) {
       setError(errorMessage(joinError));
+      await loadRoom(false);
     } finally {
       setJoining(false);
     }
@@ -155,49 +196,95 @@ export function JoinPage() {
           <div className="field">
             <span>Pointer color</span>
             <div className="color-picker" role="group" aria-label="Pointer color">
-              {COLORS.map((option) => (
-                <button
-                  key={option}
-                  className={option === color ? 'color-swatch selected' : 'color-swatch'}
-                  style={{ background: option }}
-                  type="button"
-                  aria-label={`Choose color ${option}`}
-                  aria-pressed={option === color}
-                  onClick={() => setColor(option)}
-                />
-              ))}
+              {COLORS.map((option) => {
+                const taken = usedColors.has(option.toLowerCase());
+                return (
+                  <button
+                    key={option}
+                    className={[
+                      'color-swatch',
+                      option === color && !taken ? 'selected' : '',
+                      taken ? 'is-taken' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={{ background: option }}
+                    type="button"
+                    aria-label={taken ? `Color ${option} is in use` : `Choose color ${option}`}
+                    aria-pressed={option === color && !taken}
+                    title={taken ? 'Already in use by another player' : undefined}
+                    disabled={taken}
+                    onClick={() => setColor(option)}
+                  />
+                );
+              })}
             </div>
             <small className="muted">
               The GM uses a silver downward triangle. A normal click does nothing;
-              Shift+click pings.
+              Shift+click pings. Colors already in use by another player are disabled.
             </small>
           </div>
 
           <div className="field">
             <span>Token shape</span>
             <div className="shape-picker" role="group" aria-label="Token shape">
-              {PLAYER_SHAPES.map((option) => (
-                <button
-                  key={option}
-                  className={option === shape ? 'shape-swatch selected' : 'shape-swatch'}
-                  type="button"
-                  aria-label={PLAYER_SHAPE_LABELS[option]}
-                  aria-pressed={option === shape}
-                  title={PLAYER_SHAPE_LABELS[option]}
-                  onClick={() => setShape(option)}
-                >
-                  <ShapeIcon shape={option} color={color} />
-                </button>
-              ))}
+              {PLAYER_SHAPES.map((option) => {
+                const taken = usedShapes.has(option);
+                return (
+                  <button
+                    key={option}
+                    className={[
+                      'shape-swatch',
+                      option === shape && !taken ? 'selected' : '',
+                      taken ? 'is-taken' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    type="button"
+                    aria-label={
+                      taken
+                        ? `${PLAYER_SHAPE_LABELS[option]} is in use`
+                        : PLAYER_SHAPE_LABELS[option]
+                    }
+                    aria-pressed={option === shape && !taken}
+                    title={
+                      taken
+                        ? 'Already in use by another player'
+                        : PLAYER_SHAPE_LABELS[option]
+                    }
+                    disabled={taken}
+                    onClick={() => setShape(option)}
+                  >
+                    <ShapeIcon shape={option} color={color} />
+                  </button>
+                );
+              })}
             </div>
             <small className="muted">
-              Your token and ping use this shape, so color is not the only cue.
+              Your token and ping use this shape, so color is not the only cue. Shapes
+              already claimed by another player are disabled.
             </small>
           </div>
 
+          {noMarkerAvailable ? (
+            <div className="notice warning">
+              No player markers are available. Every pointer color or token shape is
+              already in use.
+            </div>
+          ) : null}
+
           {error ? <div className="notice error">{error}</div> : null}
 
-          <button className="button primary" type="submit" disabled={joining}>
+          <button
+            className="button primary"
+            type="submit"
+            disabled={
+              joining ||
+              noMarkerAvailable ||
+              usedColors.has(color.toLowerCase()) ||
+              usedShapes.has(shape)
+            }
+          >
             {joining ? 'Joining…' : 'Join the table'}
           </button>
         </form>

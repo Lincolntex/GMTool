@@ -248,7 +248,7 @@ to a scene restores that scene's token placements.
 | `GET` | `/api/rooms/active` | GM | Current live room + PIN |
 | `POST` | `/api/rooms/:id/scene` | GM | Change scene by `{ direction }` or `{ index }` |
 | `GET` | `/api/rooms/:id` | No | Public room data for the join screen |
-| `POST` | `/api/rooms/:id/join` | PIN | Create participant from PIN, name, color, and shape; return participant token |
+| `POST` | `/api/rooms/:id/join` | PIN | Create participant from PIN, name, color, and shape; rejects colors and shapes already claimed by another participant |
 | `POST` | `/api/rooms/:id/end` | GM | End room and invalidate link |
 
 Uploads are `multipart/form-data` with an `image` field. Accepted types are PNG, JPEG, and WebP;
@@ -334,6 +334,10 @@ scene regardless of window size or image aspect ratio.
 - Tokens are stored per scene. Player tokens return to the drawer when entering a new scene, and
   the previous scene keeps its placements.
 - Players receive exactly one token, using the color and shape chosen on the join screen.
+- Pointer colors and token shapes are unique per participant. The join screen disables any color or
+  shape already claimed by another participant and refreshes every few seconds so options claimed
+  by other players disappear without a page reload. The server rechecks both values, so a direct
+  join request or two near-simultaneous joins cannot duplicate a marker.
 - The seven player shapes are circle, square, diamond, hexagon, 8-point star, heart, and teardrop.
 - Shapes are SVG paths with a white stroke and dark drop shadow so they remain legible on light and
   dark maps. Shape is never conveyed by color alone.
@@ -473,6 +477,7 @@ Do not expose this alpha to the internet.
   - Scene switch with per-scene tokens and player token reset
   - Faint local-only grid while the shared grid is hidden
   - Seven-shape join picker with color preview
+  - Used colors and shapes disabled on the join screen and rejected by the server
   - Shape marker in the session table strip and on the player token
   - Silver downward-triangle GM pointer and ping
   - Red upward-triangle enemy and green downward-triangle NPC tokens
