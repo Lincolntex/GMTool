@@ -331,8 +331,13 @@ scene regardless of window size or image aspect ratio.
   saves them with the scene, and the launch copies them into the live room.
 - Scenes can be reordered from the campaign builder with the **Order** arrows. Scene order is
   persisted through the scene `position` column and becomes the live scene order at launch.
-- The builder has an **Exit** button beside **Save Campaign** that returns to the GM dashboard
-  without saving pending changes.
+- The builder groups **Scene** actions (Add Scene, Delete Scene) above **Campaign** actions (Exit,
+  Save Campaign), separated by a horizontal rule. A single **Save Campaign** persists every scene
+  and its tokens, so the GM does not need to save between scene switches.
+- **Exit** and the top-bar **Dashboard** link return to the GM dashboard without saving. When there
+  are unsaved changes, both ask for confirmation before discarding them. Dirty state is a deep
+  comparison against the loaded campaign (or the initial defaults for a new campaign), so reverting
+  an edit does not trigger the prompt.
 - Placed campaign tokens have **Hide / Show** and **Stats** actions in the builder. Hidden tokens
   remain visible to the GM with a muted marker, and their hidden state is saved and copied into
   the live room.

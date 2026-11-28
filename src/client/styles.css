@@ -505,10 +505,38 @@ p {
 }
 
 .builder-actions {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.builder-action-group {
+  display: grid;
+  gap: 7px;
+}
+
+.builder-action-group-campaign {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.builder-action-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.builder-action-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  padding-top: 4px;
+}
+
+.builder-action-row-end {
+  justify-content: flex-end;
 }
 
 .builder-layout.grid-editing {
@@ -2502,6 +2530,14 @@ input[type="file"]::file-selector-button {
 }
 
 @media (max-width: 620px) {
+  .builder-action-row-end {
+    justify-content: flex-start;
+  }
+
+  .builder-action-row-end .button {
+    flex: 1 1 140px;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
