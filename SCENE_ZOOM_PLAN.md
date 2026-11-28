@@ -43,9 +43,19 @@ These decisions were confirmed in review on 2026-11-27.
    because they are simple, useful on desktop, and the best fallback for touch later. Pinch zoom
    remains out of scope.
 
-8. **Consistency** — Keep the zoom controls and behavior identical for GM and player views and for
-   grid and non-grid scenes. The control cluster stays in the same position, uses the same shortcuts,
-   and resets the same way so users only need to learn it once.
+8. **Shift modifier pattern** — Keep **Shift** as the shared modifier for scene canvas actions:
+   - Shift+click pings.
+   - Shift+drag broadcasts the pointer.
+   - Shift+wheel zooms.
+   - Shift+= / Shift+- zoom.
+   - Shift+0 resets.
+
+   Token editing stays click-based. Do not introduce Alt, Ctrl, or Cmd requirements for scene
+   actions. Plain arrow keys pan as a navigation action when the scene is focused.
+
+9. **Consistency** — The zoom/pan controls and behavior are the same for GM and player views and for
+   grid and non-grid scenes. The control cluster stays in the same position and uses the same
+   shortcuts and reset behavior.
 
 ## 3. Scope
 
@@ -60,7 +70,6 @@ These decisions were confirmed in review on 2026-11-27.
 - Clamping, resize handling, and scene-change reset.
 - Alignment coverage for token placement, movement, pings, and pointers.
 - Accessibility and reduced-motion behavior.
-- A recommended image-resolution callout in the campaign editor.
 - README and implementation-note updates.
 
 ### Out of scope
@@ -72,6 +81,8 @@ These decisions were confirmed in review on 2026-11-27.
 - Pinch zoom and touch gesture recognition.
 - Rotating, flipping, or skewing the scene.
 - Zooming the campaign builder preview. The builder can reuse the same camera helper later.
+- The campaign editor image-resolution callout. This is deferred to the planned Campaign Editor UI
+  overhaul. Recommended copy and sizing guidance are retained in section 10 for that pass.
 
 ## 4. Current state
 
@@ -106,6 +117,9 @@ same frame element is still the measured element.
 ## 5. Interaction model
 
 ### Mouse and trackpad
+
+**Shift** is the shared modifier for scene canvas actions, matching Shift+click ping and Shift+drag
+pointer broadcast. Token editing stays click-based.
 
 - Hold **Shift** and scroll while the pointer is over the scene to zoom in or out.
 - Zoom is anchored at the pointer: the map point under the cursor stays under the cursor.
@@ -384,15 +398,15 @@ Keep the camera in `SceneStage` state only:
 There is no `sessionStorage`, `localStorage`, database, or socket persistence in this pass. Each
 new scene starts at 100%, which matches the confirmed decision and keeps the feature predictable.
 
-## 10. Campaign editor image resolution guidance
+## 10. Campaign editor image resolution guidance (deferred)
 
-The zoom feature makes low-resolution background images more noticeable. Add a short guidance
-callout in the campaign editor near the background upload field.
+Zoom makes low-resolution background images more noticeable. The callout will be added during the
+planned Campaign Editor UI overhaul, not as part of this zoom implementation.
 
-Location: `src/client/pages/CampaignBuilderPage.tsx`, beside the existing
+Planned location: `src/client/pages/CampaignBuilderPage.tsx`, beside the existing
 `PNG, JPEG, or WebP. Maximum 10 MB.` text under **Background image**.
 
-Proposed copy:
+Proposed copy for that pass:
 
 > PNG, JPEG, or WebP. Maximum 10 MB. For sharp zoomed play, use at least 2560 px on the longest
 > edge. 3840 px or larger is recommended if you expect to zoom to 200–400%.
@@ -410,8 +424,8 @@ compression, and available memory vary. Keep the existing 10 MB upload limit and
 types. The scene already preserves the image aspect ratio, so the recommendation is about sharpness,
 not layout.
 
-This can ship with the zoom work or as a small standalone copy change. Add it to the same PR unless
-a separate content pass is preferred.
+This section is retained so the Campaign Editor overhaul can pick up the exact copy and guidance
+without rediscovering it.
 
 ## 11. Accessibility
 
@@ -466,10 +480,11 @@ a separate content pass is preferred.
 | Shift+wheel conflicts with browser scrolling | Page jumps while trying to zoom | Native non-passive listener; `preventDefault()` only for Shift+wheel over the scene |
 | Arrow keys conflict with page scroll or text selection | Keyboard panning becomes unreliable | Require scene focus; ignore form fields; `preventDefault()` handled arrows |
 | Ctrl/Cmd+wheel is hijacked | Breaks browser zoom and accessibility | Ignore any modifier combination except plain Shift |
+| Shift no longer feels like the scene-action modifier | Users must remember mixed modifier rules | Use Shift consistently for canvas actions: ping, pointer broadcast, zoom, and reset; keep token editing click-based and do not add Alt/Ctrl/Cmd requirements |
 | Controls or behavior differ between GM/player or grid/non-grid scenes | Users have to relearn the interaction | Same control placement, shortcuts, scale range, reset behavior, and cursor states in every session view |
 | Zoom and pan math drifts or exposes blank space | Map feels broken at high zoom | Single camera model, pure clamp functions, frame/viewport center math, reset at 100% |
 | Grid strokes thicken at high zoom | Grid becomes visually heavy | Counter-scale stroke width by the zoom factor |
-| Bitmap background blurs at 400% | Map detail becomes soft | Cap at 400%; add the recommended-resolution callout in the campaign editor; do not use nearest-neighbor rendering for photos |
+| Bitmap background blurs at 400% | Map detail becomes soft | Cap at 400%; retain the recommended-resolution guidance for the Campaign Editor overhaul; do not use nearest-neighbor rendering for photos |
 | Pointer drag and zoom interact | Broadcast pointer can jump or a drag can start a pan | Ignore wheel zoom during active pointer drag; never start pan with Shift held |
 | Camera state goes stale on resize | Map can drift out of view | Re-clamp on `ResizeObserver`; reset on aspect change |
 | React wheel handler is passive | Zoom cannot prevent page scroll | Native listener with `{ passive: false }` |
@@ -531,7 +546,6 @@ Test each combination:
 - Scene switching with per-scene tokens and zoom reset.
 - Grid visibility toggle and faint placement grid.
 - GM participant removal.
-- Campaign editor upload guidance appears with the recommended resolutions.
 - `npm run typecheck`
 - `npm run build`
 - `npm audit --omit=dev`
@@ -566,8 +580,8 @@ Test each combination:
 
 - Counter-scale grid strokes.
 - Add zoom announcements and reduced-motion handling.
-- Add the campaign editor image-resolution callout.
 - Update `README.md` and `ALPHA_IMPLEMENTATION.md`.
+- Leave the campaign editor image-resolution callout for the Campaign Editor UI overhaul.
 - Run the full browser regression matrix.
 - Open a pull request to `main`.
 
@@ -589,13 +603,12 @@ The feature is complete when:
 - The scene frame remains the same fit size at 100%; drawers and app layout are unaffected.
 - Normal scrolling and browser zoom shortcuts are not hijacked.
 - Reduced-motion and keyboard accessibility are respected.
-- The campaign editor shows recommended image resolutions for zoomed play.
 - Typecheck, production build, audit, and browser smoke tests pass.
 - README and implementation notes describe the shortcuts and the independent-view behavior.
 
-## 18. Resolved decisions and remaining questions
+## 18. Resolved decisions
 
-Resolved in review:
+All implementation decisions are settled.
 
 1. Include panning in the first pass using standard map-viewer behavior.
 2. Zoom range is 100%–400%, subject to later testing.
@@ -604,15 +617,11 @@ Resolved in review:
 5. Zoom is Shift+wheel or Shift+=/−. Arrow keys pan. On-screen controls are included.
 6. Mobile is tabled. On-screen `−` / `+` / reset buttons are included for desktop and future touch
    use.
-7. The campaign editor gets a recommended-resolution callout.
+7. `Shift+0` remains a reset convenience.
+8. Shift remains the shared modifier for scene canvas actions: ping, pointer broadcast, zoom, and
+   reset. Token editing stays click-based. No Alt/Ctrl/Cmd requirements are added.
+9. Zoom controls and behavior are identical in GM and player views and on grid and non-grid scenes.
+10. The campaign editor image-resolution callout is deferred to the planned Campaign Editor UI
+    overhaul. Section 10 retains the proposed copy and sizing guidance for that pass.
 
-Remaining minor questions:
-
-1. **Reset shortcut:** the plan keeps `Shift+0` as a reset convenience. If "only Shift+wheel or
-   Shift+=/−" should exclude even the reset shortcut, remove it and rely on the on-screen percentage
-   button.
-2. **“Aligned” controls:** this plan interprets the request as keeping the zoom/pan controls and
-   behavior identical across GM/player views and grid/non-grid scenes. Confirm if a different kind
-   of alignment was intended.
-3. **Image callout timing:** the plan includes the campaign editor callout in the same PR as zoom.
-   It can ship separately if preferred.
+There are no outstanding questions blocking implementation.
