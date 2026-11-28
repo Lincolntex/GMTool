@@ -1,6 +1,6 @@
 # Spotlight Toggle Plan
 
-Status: Direction approved. Three tint details remain before implementation.
+Status: Approved — ready for implementation.
 
 ## 1. Request
 
@@ -37,9 +37,9 @@ Add a session-wide **Spotlight** mode that the GM can switch between **Players**
   or acknowledge. Because the mode will switch often, avoid repeated toasts and avoid a
   pulse animation.
 - While the GM has the spotlight, the player's map gets a subtle locked tint in addition
-  to the persistent badge. The tint is static while the state holds. The intent is to
-  tint the background/grid, not the tokens, pings, or pointers, so the map still reads
-  clearly.
+  to the persistent badge. Only player views are tinted; the GM map stays clear. Tokens,
+  pings, and pointers stay unshaded. The tint uses a quick, subtle fade (about 180 ms)
+  rather than an instant flash or a pulse, and it stays static while the state holds.
 - A player who joins during GM spotlight cannot place their token until the mode switches
   back to Players. They can place it immediately when the mode returns.
 - During Players spotlight, if the GM and the owner move the same token, the last move
@@ -172,9 +172,10 @@ announced through `aria-live="polite"` when it changes.
 - The persistent player badge is the alert. Do not add a pulse or repeated animation;
   the mode switches often. Announce the change with `aria-live`. Do not show a modal,
   toast, or anything that requires a click or acknowledgement.
-- While GM spotlight is active, a subtle static tint covers the map background/grid.
-  Combined with the persistent badge, this makes the locked state obvious without
-  motion. Tokens, pings, and pointers stay untinted and fully legible.
+- While GM spotlight is active, a subtle tint covers the player's map background/grid.
+  Combined with the persistent badge, this makes the locked state obvious. The tint
+  fades in and out over about 180 ms; it does not pulse. Tokens, pings, and pointers stay
+  untinted and fully legible. The GM map is never tinted.
 
 ## 6. Review decisions
 
@@ -203,29 +204,22 @@ The original questions are resolved:
 2. **Character drawer movement icon** — keep it visible and disable it with explanatory
    copy. Everything else in the drawer remains usable.
 3. **Badge/alert** — use a persistent badge with no popup, toast, acknowledgement, or
-   pulse. While GM spotlight is active, add a subtle static map tint as the visual lock
-   cue. The badge remains the persistent state indicator.
+   pulse. While GM spotlight is active, the player's map gets a subtle tint over the
+   background and grid. Tokens, pings, and pointers stay unshaded. The tint fades in and
+   out over about 180 ms and is player-only; the GM map stays clear.
 4. **New players** — no placement exception. A player who joins during GM spotlight can
    place their token as soon as the mode returns to Players.
 
-## 6b. Tint details to confirm
+## 6b. Final tint decisions
 
 The deployment is confirmed as a single instance for now.
 
-1. **Player view only.** Should the tint appear only in player views, leaving the GM map
-   untinted and fully clear while they position tokens?
-   Recommendation: yes. The GM control and header already show the state; tinting the GM
-   map would make positioning harder.
-
-2. **Tint scope.** Should the tint sit over the background and grid only, leaving tokens,
-   pings, and pointers fully untinted? That keeps the battlefield readable while still
-   signaling the lock.
-   Recommendation: yes. Use a low-opacity overlay below the token and pointer layers.
-
-3. **Motion.** Should the tint appear instantly with no transition, or use a very short
-   fade? Since the spotlight flips often, no pulse is wanted either way.
-   Recommendation: a very short fade (about 120–150 ms) or an instant switch; no pulse.
-   Prefer the shorter/simpler option if there is any doubt.
+1. **Player view only** — confirmed. The GM map stays untinted.
+2. **Tint scope** — confirmed. Tint the background and grid only; tokens, pings, and
+   pointers remain unshaded and fully legible.
+3. **Motion** — confirmed. Use a quick, subtle opacity fade of about 180 ms, not an
+   instant flash and not a pulse. Keep the tint subtle enough to indicate the scene is
+   locked without making the map hard to read. Respect `prefers-reduced-motion`.
 
 ## 7. Concerns and suggested solutions
 
@@ -389,7 +383,9 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 - Add the read-only spotlight badge to the player title row.
 - Add an effect that clears `placingTokenId` when the spotlight becomes `'gm'`.
 - Compute `movementLocked = role === 'player' && room.spotlight === 'gm'`.
-- Render the map tint only when `movementLocked` is true, so the GM map stays clear.
+- Render the tint element in player views and toggle an `is-visible` class from
+  `movementLocked`, so it fades in and out without unmounting. The GM view never renders
+  the tint.
 - Pass the value to `SceneStage` and `SessionDrawers`, or compute it from `room` in each.
 - In `SceneStage`:
   - Do not allow `onStartPlacement` for the player's own token while locked.
@@ -412,10 +408,12 @@ launch payloads. Starting a fresh session creates a new room with the default mo
   - `position: absolute; inset: 0; pointer-events: none; z-index: 2;`
   - Place it after the grid overlay and before the token layer so the grid is tinted but
     tokens, pings, and pointers stay clear. Tokens use z-index 3 and pointers z-index 4.
-  - Use a low-opacity dark/amber wash plus an optional inset accent border. Keep it
-    subtle enough that the map remains readable.
-- Do not add a badge pulse or repeated animation. A very short opacity transition is
-  acceptable if the tint is not switched instantly; disable motion under
+  - Use a low-opacity dark wash, roughly `0.20–0.24` alpha. It should read as “the scene
+    is locked,” not as a blackout. No inset border is required.
+  - Render the element in player views only. Default `opacity: 0`; add `is-visible` at
+    `opacity: 1` and use `transition: opacity 180ms ease`. This gives a quick but subtle
+    fade in and out without a pulse.
+- Do not add a badge pulse or repeated animation. Disable the tint transition under
   `prefers-reduced-motion`.
 - Add responsive wrapping for the GM actions row.
 - Do not add a modal or acknowledgement-based notice.
@@ -435,9 +433,10 @@ Use a GM window and two player windows.
   updates both players within a moment.
 - Players see the badge update to the active mode. The badge does not pulse; no modal,
   toast, or acknowledgement appears.
-- While GM spotlight is active, the player map shows a subtle static tint. Tokens,
-  pings, and pointers remain untinted; clicks and pings still work through the tint.
-  The GM map stays untinted.
+- While GM spotlight is active, the player map shows a subtle tint over the background
+  and grid. It fades in and out over about 180 ms, with no pulse. Tokens, pings, and
+  pointers remain untinted; clicks and pings still work through the tint. The GM map
+  stays untinted. With reduced motion enabled, the tint switches without a transition.
 - The GM control shows a pending state while the request is in flight and disables
   while the socket is reconnecting.
 - On Players spotlight:
