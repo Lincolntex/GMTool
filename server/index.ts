@@ -26,8 +26,10 @@ import {
   endRoom,
   getActiveRoom,
   hydrateActiveRoom,
+  publicParticipants,
   publicRoom,
   publicTokens,
+  removeParticipant,
   setRoomScene,
 } from './rooms';
 import {
@@ -350,6 +352,53 @@ app.post(
     } catch (error) {
       res.status(400).json({
         error: error instanceof Error ? error.message : 'Could not join.',
+      });
+    }
+  }),
+);
+
+app.delete(
+  '/api/rooms/:id/participants/:participantId',
+  requireGm,
+  asyncHandler(async (req, res) => {
+    const room = getActiveRoom();
+    if (!room || room.id !== req.params.id || room.ended) {
+      res.status(404).json({ error: 'Session not found or already ended.' });
+      return;
+    }
+
+    try {
+      const participant = await removeParticipant(
+        room,
+        req.params.participantId,
+      );
+      const target = participant.socketId
+        ? io.sockets.sockets.get(participant.socketId)
+        : undefined;
+
+      if (target) {
+        target.leave(room.id);
+        target.emit('participant:kicked', {
+          participantId: participant.id,
+          name: participant.name,
+        });
+        setTimeout(() => target.disconnect(true), 200);
+      }
+
+      io.to(room.id).emit('participants:update', {
+        participants: publicParticipants(room),
+        gmConnected: Boolean(room.gmSocketId),
+      });
+      io.to(room.id).emit('tokens:changed', publicTokens(room));
+      io.to(room.id).emit('pointer:end', { participantId: participant.id });
+
+      res.json({ ok: true, room: publicRoom(room) });
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Could not remove that player.',
       });
     }
   }),

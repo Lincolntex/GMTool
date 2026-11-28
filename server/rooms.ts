@@ -503,6 +503,44 @@ export async function addParticipant(
   return { participant, token: rawToken };
 }
 
+export async function removeParticipant(
+  room: Room,
+  participantId: string,
+): Promise<ServerParticipant> {
+  const participant = room.participants.get(participantId);
+  if (!participant) throw new Error('That player is no longer in the session.');
+
+  await db.transaction(async (tx) => {
+    await lockRoom(tx, room.id);
+    await tx
+      .delete(roomTokens)
+      .where(eq(roomTokens.ownerParticipantId, participantId));
+    const deleted = await tx
+      .delete(roomParticipants)
+      .where(
+        and(
+          eq(roomParticipants.id, participantId),
+          eq(roomParticipants.roomId, room.id),
+        ),
+      )
+      .returning({ id: roomParticipants.id });
+
+    if (deleted.length === 0) {
+      throw new Error('That player is no longer in the session.');
+    }
+  });
+
+  room.participants.delete(participantId);
+  for (const scene of room.scenes) {
+    scene.tokens = scene.tokens.filter(
+      (token) => token.ownerId !== participantId,
+    );
+  }
+  room.pointers.delete(participantId);
+
+  return participant;
+}
+
 export function findParticipantByToken(
   room: Room,
   token: string | undefined,

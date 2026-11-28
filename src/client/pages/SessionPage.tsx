@@ -42,6 +42,7 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
     pings,
     connected,
     ended,
+    kicked,
     error,
     socket,
     selfId,
@@ -67,6 +68,10 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
       if (pingTimer.current !== null) window.clearTimeout(pingTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (kicked) clearParticipantToken(roomId);
+  }, [kicked, roomId]);
 
   useEffect(() => {
     if (!localPing) return;
@@ -122,6 +127,24 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
   function leave(): void {
     clearParticipantToken(roomId);
     navigate(`/join/${roomId}`, { replace: true });
+  }
+
+  if (kicked) {
+    return (
+      <main className="landing">
+        <div className="card narrow">
+          <span className="eyebrow">Removed</span>
+          <h1>You were removed from the session.</h1>
+          <p className="muted">
+            The GM removed your seat from this session. You can rejoin with the
+            session link and PIN.
+          </p>
+          <button className="button primary" type="button" onClick={leave}>
+            Return to join screen
+          </button>
+        </div>
+      </main>
+    );
   }
 
   if (ended) {

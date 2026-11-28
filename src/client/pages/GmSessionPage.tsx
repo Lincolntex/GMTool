@@ -5,7 +5,7 @@ import { SceneStage } from '../components/SceneStage';
 import { SessionDrawers } from '../components/SessionDrawers';
 import { useRoomSocket } from '../hooks/useRoomSocket';
 import { api } from '../lib/api';
-import type { PublicRoom } from '../../shared/types';
+import type { PublicParticipant, PublicRoom } from '../../shared/types';
 
 type GmRoom = PublicRoom & { pin: string };
 
@@ -217,6 +217,25 @@ function SessionPanel({ gmRoom, onEnded }: { gmRoom: GmRoom; onEnded: () => void
     }
   }
 
+  async function removeParticipant(participant: PublicParticipant): Promise<void> {
+    if (
+      !window.confirm(
+        `Remove ${participant.name} from the session? Their token and player marker will be removed from every scene.`,
+      )
+    ) {
+      return;
+    }
+
+    setLocalError(null);
+    try {
+      await api(`/api/rooms/${room.id}/participants/${participant.id}`, {
+        method: 'DELETE',
+      });
+    } catch (removeError) {
+      setLocalError(errorMessage(removeError));
+    }
+  }
+
   async function toggleGrid(): Promise<void> {
     if (gridBusy) return;
     setGridBusy(true);
@@ -328,7 +347,10 @@ function SessionPanel({ gmRoom, onEnded }: { gmRoom: GmRoom; onEnded: () => void
 
         <div className="header-table">
           <span className="header-label">Table</span>
-          <ParticipantStrip room={room} />
+          <ParticipantStrip
+            room={room}
+            onRemoveParticipant={(participant) => void removeParticipant(participant)}
+          />
         </div>
       </header>
 
