@@ -147,7 +147,8 @@ The Express server serves the built client and the API from one process.
     are shown inside the Character drawer. **Notes** remains available on the right.
 21. Open the player **Scene** drawer to see placed visible tokens. Click a token row to ping it
     locally; other clients do not receive that ping.
-22. Confirm both windows show the same scene, grid, and visible tokens.
+22. Confirm both windows show the same scene, grid, and visible tokens. The GM marker is gold in
+    the GM view, and each player sees their own marker gold in the Table strip.
 23. Hide a GM token. The player view no longer shows it. Move the player token onto its square,
     then show the token again. The player token is pushed to a nearby free square.
 24. Hold **Shift** and click the scene in one window. The other window should show your ping in
@@ -240,8 +241,9 @@ actions.
 - Join link plus 6-digit PIN.
 - Player display name with a pointer color and token shape that are unique to that player. The
   join screen disables colors and shapes already claimed by another participant.
-- Live participant strip with color-and-shape markers and online/offline state. The GM can click a
-  player's marker to remove that player. Their token is deleted on every scene, their color and
+- Live participant strip with color-and-shape markers and online/offline state. The GM marker is
+  gold in the GM view, and each player sees their own marker gold in their view. The GM can click
+  a player's marker to remove that player. Their token is deleted on every scene, their color and
   shape are freed, and their client shows a removed-from-session screen.
 - Shift+click ping and Shift+drag pointer, over the scene only.
 - Independent GM/player scene zoom and pan from 100% to 400%. Shift+wheel and Shift+=/− zoom,

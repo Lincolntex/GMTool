@@ -349,6 +349,7 @@ function SessionPanel({ gmRoom, onEnded }: { gmRoom: GmRoom; onEnded: () => void
           <span className="header-label">Table</span>
           <ParticipantStrip
             room={room}
+            role="gm"
             onRemoveParticipant={(participant) => void removeParticipant(participant)}
           />
         </div>

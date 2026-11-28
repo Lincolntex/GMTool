@@ -337,6 +337,9 @@ scene regardless of window size or image aspect ratio.
 - Tokens are stored per scene. Player tokens return to the drawer when entering a new scene, and
   the previous scene keeps its placements.
 - Players receive exactly one token, using the color and shape chosen on the join screen.
+- The participant strip highlights the current viewer. The GM chip is gold in the GM view, and each
+  player sees their own player chip gold in their own view. Other markers keep the normal styling.
+  The highlighted chip also carries a `(you)` title/accessible suffix and `aria-current`.
 - The GM can remove a player by clicking that player's shape marker in the session bar. Removal
   deletes the participant and all of their player tokens across scenes, frees their color and shape
   for new joiners, and disconnects the player's socket. The removed player sees a
@@ -495,6 +498,7 @@ Do not expose this alpha to the internet.
   - Join screen
   - Player join
   - Shared scene and participant strip
+  - Gold current-viewer marker in GM and player Table strips
   - GM removal of a player from the participant strip
   - Removed player sees the removed-from-session screen and loses their participant token
   - Per-scene grid builder, slider, and nudge alignment on a preset and an uploaded map
