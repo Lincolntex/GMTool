@@ -4,9 +4,11 @@
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { Minus, Plus } from '@phosphor-icons/react';
 import type { Socket } from 'socket.io-client';
 import {
   cellAtPoint,
@@ -23,6 +25,17 @@ import type {
   TokenInfo,
   TokenShape,
 } from '../../shared/types';
+import {
+  MAX_SCENE_SCALE,
+  MIN_SCENE_SCALE,
+  SCENE_KEY_ZOOM_FACTOR,
+  SCENE_WHEEL_SENSITIVITY,
+  clampSceneCamera,
+  createDefaultCamera,
+  panSceneCamera,
+  zoomSceneCamera,
+  type SceneCamera,
+} from '../lib/sceneCamera';
 import { tokenInitials, tokenShapeForToken } from '../lib/tokens';
 import { GridOverlay } from './GridOverlay';
 import { ShapeIcon, TokenGlyph } from './ShapeIcon';
@@ -59,6 +72,13 @@ interface DragState {
   lastSentAt: number;
 }
 
+interface PanState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startCamera: SceneCamera;
+}
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -77,11 +97,25 @@ export function SceneStage({
   onPlaceToken,
   onUnplaceToken,
 }: SceneStageProps) {
-  const stageRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const frameBaseRef = useRef({ width: 0, height: 0 });
   const dragRef = useRef<DragState | null>(null);
+  const panRef = useRef<PanState | null>(null);
+  const cameraRef = useRef<SceneCamera>(createDefaultCamera());
+  const zoomAtRef = useRef<(scale: number, x?: number, y?: number) => void>(
+    () => undefined,
+  );
+  const spaceHeldRef = useRef(false);
+  const panEndedAtRef = useRef(0);
+  const announceTimerRef = useRef<number | null>(null);
   const [aspect, setAspect] = useState(16 / 9);
   const [frameWidth, setFrameWidth] = useState<number | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [camera, setCamera] = useState<SceneCamera>(createDefaultCamera);
+  const [panning, setPanning] = useState(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [zoomAnnouncement, setZoomAnnouncement] = useState('');
   const [hoverCell, setHoverCell] = useState<TokenCell | null>(null);
   const background = room.scene.background;
   const backgroundKey = background.type === 'upload' ? background.url : background.preset;
@@ -91,23 +125,33 @@ export function SceneStage({
     ? tokens.find((token) => token.id === placingTokenId) ?? null
     : null;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setAspect(16 / 9);
     setHoverCell(null);
-  }, [backgroundKey]);
+    resetCamera();
+  }, [backgroundKey, room.activeSceneIndex]);
+
+  useLayoutEffect(() => {
+    resetCamera();
+  }, [aspect]);
 
   useEffect(() => {
     setHoverCell(null);
   }, [placingTokenId, room.activeSceneIndex]);
 
   useLayoutEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
 
     function updateSize() {
-      if (!stage) return;
-      const availableWidth = stage.clientWidth - 16;
-      const availableHeight = stage.clientHeight - 16;
+      if (!viewport) return;
+      const availableWidth = viewport.clientWidth;
+      const availableHeight = viewport.clientHeight;
+      setViewportSize((previous) =>
+        previous.width === availableWidth && previous.height === availableHeight
+          ? previous
+          : { width: availableWidth, height: availableHeight },
+      );
       if (availableWidth <= 0 || availableHeight <= 0) return;
 
       let width = availableWidth;
@@ -122,9 +166,206 @@ export function SceneStage({
 
     updateSize();
     const observer = new ResizeObserver(updateSize);
-    observer.observe(stage);
+    observer.observe(viewport);
     return () => observer.disconnect();
   }, [aspect]);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const viewport = viewportRef.current;
+    if (!frame || !viewport) return;
+
+    const scale = cameraRef.current.scale > 0 ? cameraRef.current.scale : 1;
+    const frameRect = frame.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const base = {
+      width: frameRect.width / scale,
+      height: frameRect.height / scale,
+    };
+    frameBaseRef.current = base;
+
+    commitCamera(
+      clampSceneCamera(
+        cameraRef.current,
+        base.width,
+        base.height,
+        viewportRect.width,
+        viewportRect.height,
+      ),
+    );
+  }, [
+    frameWidth,
+    aspect,
+    viewportSize.width,
+    viewportSize.height,
+    camera.scale,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (announceTimerRef.current !== null) {
+        window.clearTimeout(announceTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function releaseSpace() {
+      if (!spaceHeldRef.current) return;
+      spaceHeldRef.current = false;
+      setSpaceHeld(false);
+    }
+
+    function handleWindowKeyUp(event: KeyboardEvent) {
+      if (event.code === 'Space') releaseSpace();
+    }
+
+    function handleWindowBlur() {
+      releaseSpace();
+      if (panRef.current) finishPan();
+    }
+
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('keyup', handleWindowKeyUp);
+    return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('keyup', handleWindowKeyUp);
+    };
+  }, []);
+
+  function commitCamera(next: SceneCamera): void {
+    const current = cameraRef.current;
+    if (
+      next.scale === current.scale &&
+      next.x === current.x &&
+      next.y === current.y
+    ) {
+      return;
+    }
+    cameraRef.current = next;
+    setCamera(next);
+  }
+
+  function getFrameBaseSize(): { width: number; height: number } {
+    const base = frameBaseRef.current;
+    if (base.width > 0 && base.height > 0) return base;
+
+    const frame = frameRef.current;
+    return frame
+      ? { width: frame.offsetWidth, height: frame.offsetHeight }
+      : { width: 0, height: 0 };
+  }
+
+  function announceZoom(scale: number): void {
+    if (announceTimerRef.current !== null) {
+      window.clearTimeout(announceTimerRef.current);
+    }
+    announceTimerRef.current = window.setTimeout(() => {
+      setZoomAnnouncement(`${Math.round(scale * 100)}% zoom`);
+      announceTimerRef.current = null;
+    }, 300);
+  }
+
+  function zoomAt(scale: number, clientX?: number, clientY?: number): void {
+    const viewport = viewportRef.current;
+    if (!viewport || panRef.current) return;
+
+    const base = getFrameBaseSize();
+    const rect = viewport.getBoundingClientRect();
+    const anchorX = clientX ?? rect.left + rect.width / 2;
+    const anchorY = clientY ?? rect.top + rect.height / 2;
+    const next = zoomSceneCamera(
+      cameraRef.current,
+      scale,
+      { x: anchorX, y: anchorY },
+      {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      base.width,
+      base.height,
+    );
+
+    if (next === cameraRef.current) return;
+    setHoverCell(null);
+    commitCamera(next);
+    announceZoom(next.scale);
+  }
+
+  function resetCamera(): void {
+    const next = createDefaultCamera();
+    const current = cameraRef.current;
+    if (
+      current.scale === next.scale &&
+      current.x === next.x &&
+      current.y === next.y
+    ) {
+      return;
+    }
+    setHoverCell(null);
+    commitCamera(next);
+    announceZoom(next.scale);
+  }
+
+  function panCameraBy(deltaX: number, deltaY: number): void {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const base = getFrameBaseSize();
+    const rect = viewport.getBoundingClientRect();
+    commitCamera(
+      panSceneCamera(
+        cameraRef.current,
+        deltaX,
+        deltaY,
+        base.width,
+        base.height,
+        rect.width,
+        rect.height,
+      ),
+    );
+  }
+
+  zoomAtRef.current = zoomAt;
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const viewportElement = viewport;
+
+    function handleWheel(event: WheelEvent) {
+      if (!event.shiftKey) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (dragRef.current || panRef.current) return;
+
+      event.preventDefault();
+      const raw =
+        Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+          ? event.deltaY
+          : event.deltaX;
+      const pixels =
+        event.deltaMode === 1
+          ? raw * 16
+          : event.deltaMode === 2
+            ? raw * viewportElement.clientHeight
+            : raw;
+      const factor = Math.min(
+        1.18,
+        Math.max(0.85, Math.exp(-pixels * SCENE_WHEEL_SENSITIVITY)),
+      );
+
+      zoomAtRef.current(
+        cameraRef.current.scale * factor,
+        event.clientX,
+        event.clientY,
+      );
+    }
+
+    viewportElement.addEventListener('wheel', handleWheel, { passive: false });
+    return () => viewportElement.removeEventListener('wheel', handleWheel);
+  }, []);
 
   useEffect(() => {
     const tokenId: string = placingTokenId ?? '';
@@ -222,6 +463,8 @@ export function SceneStage({
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (panRef.current) return;
+
     if (placingTokenId && geometry) {
       const point = readClientPoint(event.clientX, event.clientY);
       setHoverCell(point ? cellAtPoint(geometry, point.x, point.y) : null);
@@ -253,7 +496,194 @@ export function SceneStage({
     finishPointer(event, true);
   }
 
+  function handleViewportPointerDownCapture(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button')) return;
+    viewportRef.current?.focus({ preventScroll: true });
+  }
+
+  function handleViewportPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    if (event.shiftKey) return;
+
+    const middleButton = event.button === 1;
+    const spaceLeftButton = event.button === 0 && spaceHeldRef.current;
+    if (!middleButton && !spaceLeftButton) return;
+    if (middleButton) event.preventDefault();
+    if (cameraRef.current.scale <= MIN_SCENE_SCALE) return;
+
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic events and some browsers may not have an active pointer to capture.
+    }
+
+    panRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startCamera: cameraRef.current,
+    };
+    setPanning(true);
+    setHoverCell(null);
+  }
+
+  function finishPan(event?: ReactPointerEvent<HTMLDivElement>): void {
+    const pan = panRef.current;
+    if (!pan) return;
+
+    panRef.current = null;
+    setPanning(false);
+    panEndedAtRef.current = performance.now();
+
+    try {
+      if (event?.currentTarget.hasPointerCapture(pan.pointerId)) {
+        event.currentTarget.releasePointerCapture(pan.pointerId);
+      }
+    } catch {
+      // The browser may have already released capture.
+    }
+  }
+
+  function handleViewportPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    event.preventDefault();
+    const base = getFrameBaseSize();
+    const rect = viewport.getBoundingClientRect();
+    commitCamera(
+      panSceneCamera(
+        pan.startCamera,
+        event.clientX - pan.startX,
+        event.clientY - pan.startY,
+        base.width,
+        base.height,
+        rect.width,
+        rect.height,
+      ),
+    );
+  }
+
+  function handleViewportPointerUp(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    finishPan(event);
+  }
+
+  function handleSceneKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    const zoomIn =
+      event.shiftKey &&
+      (event.key === '+' ||
+        event.key === '=' ||
+        event.code === 'Equal' ||
+        event.code === 'NumpadAdd');
+    if (zoomIn) {
+      event.preventDefault();
+      zoomAt(cameraRef.current.scale * SCENE_KEY_ZOOM_FACTOR);
+      return;
+    }
+
+    const zoomOut =
+      event.shiftKey &&
+      (event.key === '-' ||
+        event.key === '_' ||
+        event.code === 'Minus' ||
+        event.code === 'NumpadSubtract');
+    if (zoomOut) {
+      event.preventDefault();
+      zoomAt(cameraRef.current.scale / SCENE_KEY_ZOOM_FACTOR);
+      return;
+    }
+
+    const reset =
+      event.shiftKey &&
+      (event.key === '0' ||
+        event.key === ')' ||
+        event.code === 'Digit0' ||
+        event.code === 'Numpad0');
+    if (reset) {
+      event.preventDefault();
+      resetCamera();
+      return;
+    }
+
+    if (event.code === 'Space') {
+      if (target?.closest('button')) return;
+      event.preventDefault();
+      spaceHeldRef.current = true;
+      setSpaceHeld(true);
+      return;
+    }
+
+    if (
+      event.key === 'ArrowUp' ||
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight'
+    ) {
+      event.preventDefault();
+      if (cameraRef.current.scale <= MIN_SCENE_SCALE) return;
+
+      const viewport = viewportRef.current;
+      const step = viewport
+        ? Math.max(
+            32,
+            Math.min(viewport.clientWidth, viewport.clientHeight) * 0.08,
+          )
+        : 40;
+      const deltaX =
+        event.key === 'ArrowLeft'
+          ? step
+          : event.key === 'ArrowRight'
+            ? -step
+            : 0;
+      const deltaY =
+        event.key === 'ArrowUp'
+          ? step
+          : event.key === 'ArrowDown'
+            ? -step
+            : 0;
+      panCameraBy(deltaX, deltaY);
+    }
+  }
+
+  function handleSceneKeyUp(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.code !== 'Space') return;
+    spaceHeldRef.current = false;
+    setSpaceHeld(false);
+  }
+
+  function handleSceneBlur(): void {
+    spaceHeldRef.current = false;
+    setSpaceHeld(false);
+  }
+
   function handleFrameClick(event: ReactMouseEvent<HTMLDivElement>): void {
+    if (performance.now() - panEndedAtRef.current < 200) return;
     if (!placingTokenId || !geometry || event.shiftKey) return;
     const point = readClientPoint(event.clientX, event.clientY);
     if (!point) return;
@@ -276,6 +706,9 @@ export function SceneStage({
 
   const frameStyle = {
     '--scene-aspect': aspect,
+    '--scene-zoom': camera.scale,
+    '--scene-pan-x': `${camera.x}px`,
+    '--scene-pan-y': `${camera.y}px`,
     aspectRatio: String(aspect),
     width: frameWidth === null ? '100%' : `${frameWidth}px`,
   } as CSSProperties;
@@ -287,10 +720,23 @@ export function SceneStage({
           tokenAt(hoverCell, selectedToken.id, selectedToken.kind === 'player'),
         )
       : false;
+  const zoomPercent = Math.round(camera.scale * 100);
+  const viewportClassName = [
+    'scene-viewport',
+    camera.scale > MIN_SCENE_SCALE ? 'is-zoomed' : '',
+    panning ? 'is-panning' : '',
+    spaceHeld && camera.scale > MIN_SCENE_SCALE ? 'is-space-held' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <section className="scene-panel">
-      <div className="scene-stage" ref={stageRef}>
+      <div
+        className="scene-stage"
+        onKeyDown={handleSceneKeyDown}
+        onKeyUp={handleSceneKeyUp}
+      >
         <div
           className={
             background.type === 'upload'
@@ -306,17 +752,32 @@ export function SceneStage({
         />
 
         <div
-          ref={frameRef}
-          className={placingTokenId ? 'scene-frame placing-token' : 'scene-frame'}
-          style={frameStyle}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={() => setHoverCell(null)}
-          onPointerCancel={(event) => finishPointer(event, false)}
-          onClick={handleFrameClick}
-          aria-label={`Scene: ${room.scene.title}`}
+          ref={viewportRef}
+          className={viewportClassName}
+          tabIndex={0}
+          aria-label={`${room.scene.title} scene viewport`}
+          aria-describedby="scene-zoom-help"
+          onPointerDownCapture={handleViewportPointerDownCapture}
+          onPointerDown={handleViewportPointerDown}
+          onPointerMove={handleViewportPointerMove}
+          onPointerUp={handleViewportPointerUp}
+          onPointerCancel={(event) => {
+            if (panRef.current) finishPan(event);
+          }}
+          onBlur={handleSceneBlur}
         >
+          <div
+            ref={frameRef}
+            className={placingTokenId ? 'scene-frame placing-token' : 'scene-frame'}
+            style={frameStyle}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={() => setHoverCell(null)}
+            onPointerCancel={(event) => finishPointer(event, false)}
+            onClick={handleFrameClick}
+            aria-label={`Scene: ${room.scene.title}`}
+          >
           {background.type === 'upload' ? (
             <img
               className="scene-image"
@@ -340,6 +801,7 @@ export function SceneStage({
               grid={room.scene.grid}
               aspect={aspect}
               faint={!room.gridVisible}
+              lineWidth={1 / camera.scale}
             />
           ) : null}
 
@@ -525,6 +987,54 @@ export function SceneStage({
             ) : null}
           </div>
         </div>
+        </div>
+
+        <p id="scene-zoom-help" className="sr-only">
+          Use Shift plus the mouse wheel, or Shift plus or minus, to zoom. Press
+          Shift+0 to reset. Use the arrow keys to pan when zoomed.
+        </p>
+
+        <div className="scene-zoom-controls" role="group" aria-label="Scene zoom">
+          <button
+            className="scene-zoom-button"
+            type="button"
+            aria-label="Zoom out"
+            title="Zoom out (Shift+-)"
+            disabled={camera.scale <= MIN_SCENE_SCALE}
+            onClick={() =>
+              zoomAt(cameraRef.current.scale / SCENE_KEY_ZOOM_FACTOR)
+            }
+          >
+            <Minus size={14} weight="bold" aria-hidden="true" />
+          </button>
+
+          <button
+            className="scene-zoom-level"
+            type="button"
+            aria-label={`Reset zoom, currently ${zoomPercent}%`}
+            title="Reset zoom to 100% (Shift+0)"
+            onClick={resetCamera}
+          >
+            {zoomPercent}%
+          </button>
+
+          <button
+            className="scene-zoom-button"
+            type="button"
+            aria-label="Zoom in"
+            title="Zoom in (Shift+=)"
+            disabled={camera.scale >= MAX_SCENE_SCALE}
+            onClick={() =>
+              zoomAt(cameraRef.current.scale * SCENE_KEY_ZOOM_FACTOR)
+            }
+          >
+            <Plus size={14} weight="bold" aria-hidden="true" />
+          </button>
+        </div>
+
+        <span className="sr-only" aria-live="polite">
+          {zoomAnnouncement}
+        </span>
       </div>
     </section>
   );

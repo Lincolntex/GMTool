@@ -67,6 +67,7 @@ src/
     styles.css
     lib/
       api.ts
+      sceneCamera.ts
       storage.ts
       tokens.ts
     hooks/
@@ -381,6 +382,27 @@ scene regardless of window size or image aspect ratio.
 - The session uses fixed icon rails that start below the top bar, with hover/focus labels. Each
   drawer opens directly from its rail and overlays the session header and scene map without
   resizing or moving either. Both drawers may be open at once.
+
+### Scene zoom and pan
+
+- Zoom and pan are local per-client camera controls. They are never sent over the socket or stored
+  on the server.
+- The scene fits the viewport at 100%. The camera supports 100%–400%.
+- **Shift+wheel** zooms around the pointer. **Shift+=** and **Shift+-** zoom from the keyboard, and
+  **Shift+0** resets.
+- Arrow keys pan while the scene is focused. Middle-mouse drag and Space+left-drag also pan.
+- A small bottom-right control cluster provides `−`, the current percentage (reset), and `+`.
+- The whole scene frame is transformed together, including the background, grid, tokens, pointers,
+  pings, and placement ghost. `readClientPoint` continues to use the transformed frame rectangle,
+  so token placement, movement, pings, and pointer coordinates stay aligned.
+- Grid strokes are counter-scaled with the zoom so they remain about one screen pixel wide.
+- Panning is clamped so blank space cannot open between the map and the viewport edge. At 100% the
+  camera is centered.
+- Zoom resets to 100% on scene change, background/aspect change, and page reload. Window resizing
+  preserves the scale and re-clamps the pan.
+- The scene viewport is keyboard-focusable and described by a visually hidden shortcut summary.
+  Zoom changes are announced through a polite live region after the input settles.
+- Zoom is independent in the GM and player views and works on grid and non-grid scenes.
 - Movement is click-to-place, not drag-and-drop: click a token marker, move over a full square,
   click to place. Escape or clicking the marker again cancels. Backspace/Delete or the × returns
   a token to the drawer.
@@ -484,6 +506,12 @@ Do not expose this alpha to the internet.
   - GM control of a player token
   - Scene switch with per-scene tokens and player token reset
   - Faint local-only grid while the shared grid is hidden
+  - Shift+wheel cursor-anchored zoom on grid and non-grid scenes
+  - Shift+= / Shift+- keyboard zoom and Shift+0 reset
+  - Arrow-key, middle-drag, and Space+drag panning with clamped edges
+  - GM and player zoom independence and scene-change reset
+  - Token ghost, pings, pointers, and local pings aligned at 200% and 400%
+  - Grid stroke counter-scaling at high zoom
   - Seven-shape join picker with color preview
   - Used colors and shapes disabled on the join screen and rejected by the server
   - Shape marker in the session table strip and on the player token
