@@ -16,6 +16,7 @@
   --ok: #78d39f;
   --radius: 16px;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+  --session-top-offset: 57px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -97,10 +98,27 @@ p {
   min-height: 100vh;
 }
 
+.session-shell {
+  --session-rail-width: 56px;
+  --session-drawer-width: min(360px, 42vw);
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 75;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -859,9 +877,11 @@ input[type="file"]::file-selector-button {
 .session-page-focus {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 57px);
-  min-height: calc(100vh - 57px);
+  height: calc(100dvh - var(--session-top-offset));
+  min-height: calc(100vh - var(--session-top-offset));
+  padding-right: calc(var(--session-rail-width, 56px) + clamp(12px, 2vw, 24px));
   padding-bottom: 12px;
+  padding-left: calc(var(--session-rail-width, 56px) + clamp(12px, 2vw, 24px));
 }
 
 .session-header {
@@ -1109,6 +1129,12 @@ input[type="file"]::file-selector-button {
   border-color: rgba(216, 173, 87, 0.3);
   background: rgba(216, 173, 87, 0.08);
   color: var(--accent);
+}
+
+.scene-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .scene-focus {
@@ -1485,67 +1511,100 @@ input[type="file"]::file-selector-button {
   color: var(--accent-strong);
 }
 
-.drawer-rail {
+.session-nav {
   position: fixed;
-  top: 50%;
-  z-index: 69;
+  top: var(--session-top-offset);
+  bottom: 0;
+  z-index: 80;
   display: flex;
+  width: var(--session-rail-width, 56px);
   flex-direction: column;
-  gap: 5px;
-  transform: translateY(-50%);
+  align-items: center;
+  gap: 6px;
+  padding: 10px 7px;
+  border-color: var(--border);
+  border-style: solid;
+  background: linear-gradient(180deg, #111923, #090e14);
 }
 
-.drawer-rail-left {
+.session-nav-left {
   left: 0;
+  border-width: 0 1px 0 0;
 }
 
-.drawer-rail-right {
+.session-nav-right {
   right: 0;
+  border-width: 0 0 0 1px;
 }
 
-.drawer-rail-tab {
-  padding: 12px 7px;
-  border: 1px solid var(--border);
-  background: rgba(14, 20, 28, 0.92);
+.session-nav-button {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
   color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
 }
 
-.drawer-rail-left .drawer-rail-tab {
-  border-left: 0;
-  border-radius: 0 9px 9px 0;
+.session-nav-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
 }
 
-.drawer-rail-right .drawer-rail-tab {
-  border-right: 0;
-  border-radius: 9px 0 0 9px;
-}
-
-.drawer-rail-tab:hover,
-.drawer-rail-tab.active {
+.session-nav-button.active {
   border-color: var(--accent);
+  background: rgba(216, 173, 87, 0.12);
   color: var(--accent-strong);
 }
 
-.drawer-scrim {
-  position: fixed;
-  inset: 57px 0 0;
-  z-index: 68;
-  background: rgba(3, 6, 10, 0.18);
+.session-nav-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.session-nav-button::after {
+  position: absolute;
+  top: 50%;
+  z-index: 90;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  opacity: 0;
+  background: #060a0f;
+  color: var(--text);
+  content: attr(data-tooltip);
+  font-size: 0.68rem;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease;
+  white-space: nowrap;
+}
+
+.session-nav-left .session-nav-button::after {
+  left: calc(100% + 9px);
+}
+
+.session-nav-right .session-nav-button::after {
+  right: calc(100% + 9px);
+}
+
+.session-nav-button:hover::after,
+.session-nav-button:focus-visible::after {
+  opacity: 1;
 }
 
 .session-drawer {
   position: fixed;
-  top: 57px;
+  top: var(--session-top-offset);
   bottom: 0;
   z-index: 70;
   display: flex;
-  width: min(380px, 88vw);
+  width: var(--session-drawer-width, min(360px, 42vw));
   flex-direction: column;
   border: 1px solid var(--border-strong);
   background: linear-gradient(180deg, #131b26, #0b1119);
@@ -1553,14 +1612,14 @@ input[type="file"]::file-selector-button {
 }
 
 .session-drawer-left {
-  left: 0;
+  left: var(--session-rail-width, 56px);
   border-left: 0;
   border-radius: 0 14px 14px 0;
   animation: drawer-in-left 0.17s ease-out;
 }
 
 .session-drawer-right {
-  right: 0;
+  right: var(--session-rail-width, 56px);
   border-right: 0;
   border-radius: 14px 0 0 14px;
   animation: drawer-in-right 0.17s ease-out;
@@ -1568,18 +1627,31 @@ input[type="file"]::file-selector-button {
 
 .session-stats-drawer {
   position: fixed;
-  top: 57px;
+  top: var(--session-top-offset);
   bottom: 0;
-  left: min(380px, 88vw);
+  left: calc(var(--session-rail-width, 56px) + var(--session-drawer-width, min(360px, 42vw)));
   z-index: 71;
   display: flex;
-  width: min(300px, 58vw);
+  width: min(300px, 46%);
   flex-direction: column;
   border: 1px solid var(--border-strong);
   border-left: 0;
   background: linear-gradient(180deg, #131b26, #0b1119);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
   animation: stats-in 0.17s ease-out;
+}
+
+.scene-workspace:has(.session-drawer-right) .session-stats-drawer {
+  width: min(
+    300px,
+    max(
+      0px,
+      calc(
+        100vw - var(--session-rail-width, 56px) * 2 -
+          var(--session-drawer-width, min(360px, 42vw)) * 2
+      )
+    )
+  );
 }
 
 @keyframes stats-in {
@@ -1923,6 +1995,34 @@ input[type="file"]::file-selector-button {
   white-space: nowrap;
 }
 
+.player-token-list {
+  display: grid;
+  gap: 6px;
+}
+
+.player-token-row {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  text-align: left;
+}
+
+.player-token-row:hover {
+  border-color: var(--accent);
+  background: rgba(216, 173, 87, 0.06);
+}
+
+.player-token-row .drawer-token-shape {
+  width: 28px;
+  height: 28px;
+}
+
 .active-token-actions {
   display: flex;
   flex: 0 0 auto;
@@ -2210,6 +2310,20 @@ input[type="file"]::file-selector-button {
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.55));
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .session-drawer-left,
+  .session-drawer-right,
+  .session-stats-drawer,
+  .ping,
+  .ping-gm-triangle {
+    animation: none;
+  }
+
+  .session-nav-button::after {
+    transition: none;
+  }
+}
+
 @media (max-width: 1100px) {
   .participant-strip {
     max-width: 100%;
@@ -2258,7 +2372,7 @@ input[type="file"]::file-selector-button {
 
   .session-page-focus {
     height: auto;
-    min-height: calc(100dvh - 100px);
+    min-height: calc(100dvh - var(--session-top-offset));
   }
 
   .scene-stage {
@@ -2285,47 +2399,31 @@ input[type="file"]::file-selector-button {
     flex: 1 1 auto;
   }
 
+  .session-shell {
+    --session-rail-width: 48px;
+    --session-drawer-width: min(320px, 84vw);
+  }
+
+  .session-nav {
+    padding: 7px 4px;
+  }
+
+  .session-nav-button {
+    width: 36px;
+    height: 36px;
+  }
+
   .session-drawer {
-    top: 0;
-    bottom: 0;
-    width: 100vw;
-    border-radius: 0;
+    border-radius: 0 12px 12px 0;
+  }
+
+  .session-drawer-right {
+    border-radius: 12px 0 0 12px;
   }
 
   .session-stats-drawer {
-    top: 0;
-    left: 0;
+    left: var(--session-rail-width, 48px);
     z-index: 73;
-    width: min(320px, 88vw);
-  }
-
-  .drawer-scrim {
-    inset: 0;
-  }
-
-  .drawer-rail {
-    top: auto;
-    bottom: 10px;
-    transform: none;
-  }
-
-  .drawer-rail-left {
-    left: 10px;
-  }
-
-  .drawer-rail-right {
-    right: 10px;
-  }
-
-  .drawer-rail-tab {
-    writing-mode: horizontal-tb;
-    transform: none;
-    padding: 9px 11px;
-  }
-
-  .drawer-rail-left .drawer-rail-tab,
-  .drawer-rail-right .drawer-rail-tab {
-    border: 1px solid var(--border);
-    border-radius: 9px;
+    width: min(300px, 84vw);
   }
 }

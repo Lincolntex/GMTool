@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ParticipantStrip } from '../components/ParticipantStrip';
-import { SceneStage } from '../components/SceneStage';
+import {
+  SceneStage,
+  type LocalTokenPing,
+} from '../components/SceneStage';
 import { SessionDrawers } from '../components/SessionDrawers';
 import { useRoomSocket } from '../hooks/useRoomSocket';
 import { clearParticipantToken, getParticipantToken } from '../lib/storage';
+import type { TokenInfo } from '../../shared/types';
 
 export function SessionPage() {
   const { roomId = '' } = useParams();
@@ -49,10 +53,51 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
   });
   const [placingTokenId, setPlacingTokenId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [localPing, setLocalPing] = useState<LocalTokenPing | null>(null);
+  const [pingAnnouncement, setPingAnnouncement] = useState('');
+  const pingTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setPlacingTokenId(null);
+    setLocalPing(null);
   }, [room?.activeSceneIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (pingTimer.current !== null) window.clearTimeout(pingTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!localPing) return;
+    const token = room?.tokens.find((candidate) => candidate.id === localPing.tokenId);
+    if (
+      !token ||
+      !token.cell ||
+      token.cell.col !== localPing.cell.col ||
+      token.cell.row !== localPing.cell.row
+    ) {
+      setLocalPing(null);
+    }
+  }, [localPing, room?.tokens]);
+
+  function pingToken(token: TokenInfo): void {
+    if (!token.cell) return;
+    if (pingTimer.current !== null) window.clearTimeout(pingTimer.current);
+
+    setLocalPing({
+      id: crypto.randomUUID(),
+      tokenId: token.id,
+      cell: { ...token.cell },
+      color: token.color,
+      shape: token.shape,
+    });
+    setPingAnnouncement(`Pinged ${token.label}`);
+    pingTimer.current = window.setTimeout(() => {
+      setLocalPing(null);
+      pingTimer.current = null;
+    }, 1400);
+  }
 
   async function placeToken(tokenId: string, col: number, row: number): Promise<void> {
     setLocalError(null);
@@ -118,7 +163,7 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell session-shell">
       <header className="topbar">
         <Link to="/" className="brand">
           GMTool <span>alpha</span>
@@ -154,33 +199,41 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
           <div className="notice error">{localError || error}</div>
         ) : null}
 
-        <SessionDrawers
-          role="player"
-          room={room}
-          selfId={selfId}
-          placingTokenId={placingTokenId}
-          sceneBusy={false}
-          onStartPlacement={setPlacingTokenId}
-          onCreateToken={() => undefined}
-          onRenameToken={() => undefined}
-          onDeleteToken={() => undefined}
-          onToggleHidden={() => undefined}
-          onSelectScene={() => undefined}
-        />
+        <div className="sr-only" aria-live="polite">
+          {pingAnnouncement}
+        </div>
 
-        <div className="scene-focus">
-          <SceneStage
-            room={room}
-            socket={socket}
-            pointers={pointers}
-            pings={pings}
+        <div className="scene-workspace">
+          <div className="scene-focus">
+            <SceneStage
+              room={room}
+              socket={socket}
+              pointers={pointers}
+              pings={pings}
+              localPing={localPing}
+              role="player"
+              selfId={selfId}
+              placingTokenId={placingTokenId}
+              onStartPlacement={setPlacingTokenId}
+              onCancelPlacement={() => setPlacingTokenId(null)}
+              onPlaceToken={(tokenId, col, row) => void placeToken(tokenId, col, row)}
+              onUnplaceToken={(tokenId) => void unplaceToken(tokenId)}
+            />
+          </div>
+
+          <SessionDrawers
             role="player"
+            room={room}
             selfId={selfId}
             placingTokenId={placingTokenId}
+            sceneBusy={false}
             onStartPlacement={setPlacingTokenId}
-            onCancelPlacement={() => setPlacingTokenId(null)}
-            onPlaceToken={(tokenId, col, row) => void placeToken(tokenId, col, row)}
-            onUnplaceToken={(tokenId) => void unplaceToken(tokenId)}
+            onCreateToken={() => undefined}
+            onRenameToken={() => undefined}
+            onDeleteToken={() => undefined}
+            onToggleHidden={() => undefined}
+            onPingToken={pingToken}
+            onSelectScene={() => undefined}
           />
         </div>
       </div>

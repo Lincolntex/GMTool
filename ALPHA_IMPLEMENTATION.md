@@ -362,8 +362,15 @@ scene regardless of window size or image aspect ratio.
 - Player token icons remain in the Character drawer while on the scene, shaded darker. The
   drawer label is the player name in both placed and unplaced states. Only the Character token
   icon starts placement.
-- Player stats use a right-side slide-out with **Stats** and **Notes** tabs. The GM can view every
-  player token's stats, but a player sees only their own.
+- Player stats live inside the Character drawer. The separate player Stats tab no longer exists.
+- The player left nav is Scene, Character, and Domain cards. The Scene drawer lists only placed,
+  visible tokens with a token glyph and name. Clicking a row emits a client-only ping at the
+  token's square; it is not broadcast to other clients.
+- Domain cards is a placeholder until Daggerheart domain support exists.
+- Both roles use the same Notebook icon for the right-side Notes drawer.
+- The session uses fixed icon rails that start below the top bar, with hover/focus labels. Each
+  drawer opens directly from its rail and overlays the session header and scene map without
+  resizing or moving either. Both drawers may be open at once.
 - Movement is click-to-place, not drag-and-drop: click a token marker, move over a full square,
   click to place. Escape or clicking the marker again cancels. Backspace/Delete or the × returns
   a token to the drawer.
@@ -377,7 +384,7 @@ scene regardless of window size or image aspect ratio.
 ## 8. Scene switching
 
 - The GM header has previous/next arrows and a `current / total` counter.
-- The GM **Scene** drawer lists every scene, marks the live one, and can jump directly to it.
+- The GM **Scenes** drawer lists every scene, marks the live one, and can jump directly to it.
 - `scene:changed` broadcasts the new active scene, grid, and token list.
 - Pointers and pings are cleared on a scene change.
 - Player tokens are ensured for the new scene and start unplaced.
@@ -481,7 +488,6 @@ Do not expose this alpha to the internet.
   - Campaign builder grid arrows (24 → 25 → 24)
   - Pre-launch token placement, save, launch, and live render with initials
   - GM stats panel to the right of the token drawer
-  - Player right-side Stats and Notes tabs
   - GM viewing a player token's stats from the Players section
   - Hide/Show removing a token from the player view
   - Player placement on a hidden token's square
@@ -490,6 +496,12 @@ Do not expose this alpha to the internet.
   - Campaign scene reordering with persisted order
   - Campaign builder Hide/Show and Stats actions for placed tokens
   - Hidden campaign tokens shown muted in the builder preview
+  - Icon rails beneath the top bar with hover/focus tooltips
+  - Drawers attached to the rails that overlay the header and scene map without resizing either
+  - Independent left/right drawers that can both be open
+  - Player placed-token list and client-only token ping
+  - Player Character and Domain cards navigation, with stats moved into Character
+  - Shared Notebook icon for GM and player Notes
 
 ---
 
