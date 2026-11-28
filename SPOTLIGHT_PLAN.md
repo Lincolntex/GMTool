@@ -232,6 +232,15 @@ leaving a stale placement crosshair.
 Include the spotlight in `room:state` and `scene:changed` payloads. A player joining
 during GM spotlight must see the badge and the locked state on their first render.
 
+### New players and simultaneous moves
+
+- A player who joins during GM spotlight cannot place their token until the mode changes.
+  The GM can place it for them. This is a direct consequence of the rule, not a special
+  case.
+- During Players spotlight, the GM and the owner can both move the same token. The last
+  move accepted by the server wins, which matches the current behavior. No extra
+  concurrency control is needed for this pass.
+
 ### Header crowding
 
 The GM actions row already holds three controls. Add the spotlight as a compact
@@ -366,7 +375,10 @@ Use a GM window and two player windows.
 - Switching to GM while a player is mid-placement cancels the player's placement.
 - Switching back to Players re-enables movement without a reload.
 - A player who joins or reloads during GM spotlight sees the correct badge and is
-  locked.
+  locked. They cannot place their token until the mode returns to Players; the GM can
+  place it for them.
+- During Players spotlight, if the GM and a player move the same token at nearly the
+  same time, the last server-accepted move is the one everyone sees.
 - The mode survives scene changes, reconnect, page reload, and a server restart.
 - The header layout is usable at desktop and 620px widths.
 - Keyboard focus reaches the GM control; `aria-pressed`/`aria-live` announce the state.
