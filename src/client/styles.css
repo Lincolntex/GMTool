@@ -1072,6 +1072,28 @@ input[type="file"]::file-selector-button {
   height: 15px;
 }
 
+.participant-remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  margin: -3px;
+  background: none;
+  cursor: pointer;
+}
+
+.participant-remove .shape-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.participant-remove:hover,
+.participant-remove:focus-visible {
+  outline: 2px solid rgba(227, 107, 107, 0.85);
+  outline-offset: 1px;
+}
+
 .shape-icon {
   display: block;
   overflow: visible;

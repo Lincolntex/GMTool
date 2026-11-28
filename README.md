@@ -158,6 +158,8 @@ The Express server serves the built client and the API from one process.
 To test more players, repeat the join flow in more browser windows. Each participant needs a
 display name plus a color and shape that are not already claimed; the join screen disables used
 markers. Players can only place, move, and remove their own token; the GM can control every token.
+While a session is live, the GM can click a player's marker in the session bar to remove that
+player after a confirmation prompt.
 
 ---
 
@@ -233,7 +235,9 @@ actions.
 - Join link plus 6-digit PIN.
 - Player display name with a pointer color and token shape that are unique to that player. The
   join screen disables colors and shapes already claimed by another participant.
-- Live participant strip with color-and-shape markers and online/offline state.
+- Live participant strip with color-and-shape markers and online/offline state. The GM can click a
+  player's marker to remove that player. Their token is deleted on every scene, their color and
+  shape are freed, and their client shows a removed-from-session screen.
 - Shift+click ping and Shift+drag pointer, over the scene only.
 - Color-plus-shape identification that does not rely on red/green distinction.
 - Browser refresh or server restart rejoin while the session remains active.

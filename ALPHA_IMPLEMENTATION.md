@@ -249,6 +249,7 @@ to a scene restores that scene's token placements.
 | `POST` | `/api/rooms/:id/scene` | GM | Change scene by `{ direction }` or `{ index }` |
 | `GET` | `/api/rooms/:id` | No | Public room data for the join screen |
 | `POST` | `/api/rooms/:id/join` | PIN | Create participant from PIN, name, color, and shape; rejects colors and shapes already claimed by another participant |
+| `DELETE` | `/api/rooms/:id/participants/:participantId` | GM | Remove a participant, delete their tokens on every scene, free their marker, and disconnect their socket |
 | `POST` | `/api/rooms/:id/end` | GM | End room and invalidate link |
 
 Uploads are `multipart/form-data` with an `image` field. Accepted types are PNG, JPEG, and WebP;
@@ -280,6 +281,7 @@ built-in snow/grass/dungeon preset.
 | C→S | `room:join` | `{ roomId, role: "gm" }` or `{ roomId, role: "player", participantToken }` |
 | S→C | `room:state` | `{ room, pointers, participantId? }`; the GM also receives `pin` |
 | S→C | `participants:update` | `{ participants, gmConnected }` |
+| S→C | `participant:kicked` | `{ participantId, name }`; sent to the removed player before their socket disconnects |
 | C→S | `pointer:move` | `{ x, y }` in normalized scene coordinates |
 | S→C | `pointer:update` | `{ participantId, name, color, x, y }` |
 | C→S | `pointer:end` | No payload |
@@ -334,6 +336,10 @@ scene regardless of window size or image aspect ratio.
 - Tokens are stored per scene. Player tokens return to the drawer when entering a new scene, and
   the previous scene keeps its placements.
 - Players receive exactly one token, using the color and shape chosen on the join screen.
+- The GM can remove a player by clicking that player's shape marker in the session bar. Removal
+  deletes the participant and all of their player tokens across scenes, frees their color and shape
+  for new joiners, and disconnects the player's socket. The removed player sees a
+  removed-from-session screen and can rejoin later with the join link and PIN.
 - Pointer colors and token shapes are unique per participant. The join screen disables any color or
   shape already claimed by another participant and refreshes every few seconds so options claimed
   by other players disappear without a page reload. The server rechecks both values, so a direct
@@ -467,6 +473,8 @@ Do not expose this alpha to the internet.
   - Join screen
   - Player join
   - Shared scene and participant strip
+  - GM removal of a player from the participant strip
+  - Removed player sees the removed-from-session screen and loses their participant token
   - Per-scene grid builder, slider, and nudge alignment on a preset and an uploaded map
   - GM grid toggle mirrored to the player view
   - GM enemy/NPC token creation and placement

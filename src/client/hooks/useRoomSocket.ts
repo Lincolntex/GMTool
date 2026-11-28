@@ -29,6 +29,7 @@ export function useRoomSocket({
   const [pings, setPings] = useState<PingInfo[]>([]);
   const [connected, setConnected] = useState(false);
   const [ended, setEnded] = useState(false);
+  const [kicked, setKicked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selfId, setSelfId] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function useRoomSocket({
     setPointers({});
     setPings([]);
     setEnded(false);
+    setKicked(false);
     setError(null);
     setSelfId(null);
     // The room identity is the reset boundary. The initial room is set by its parent.
@@ -130,6 +132,12 @@ export function useRoomSocket({
       nextSocket.disconnect();
     };
 
+    const handleKicked = () => {
+      setKicked(true);
+      setConnected(false);
+      nextSocket.disconnect();
+    };
+
     const handleRoomError = (message: string) => {
       setError(message);
     };
@@ -149,6 +157,7 @@ export function useRoomSocket({
     nextSocket.on('grid:changed', handleGridChanged);
     nextSocket.on('scene:changed', handleSceneChanged);
     nextSocket.on('session:ended', handleEnded);
+    nextSocket.on('participant:kicked', handleKicked);
     nextSocket.on('room:error', handleRoomError);
     nextSocket.on('connect_error', handleConnectError);
 
@@ -174,5 +183,16 @@ export function useRoomSocket({
     [socket],
   );
 
-  return { room, pointers, pings, connected, ended, error, socket, selfId, request };
+  return {
+    room,
+    pointers,
+    pings,
+    connected,
+    ended,
+    kicked,
+    error,
+    socket,
+    selfId,
+    request,
+  };
 }
