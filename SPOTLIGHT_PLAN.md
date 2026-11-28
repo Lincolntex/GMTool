@@ -95,7 +95,8 @@ long the GM control spends pending, not whether the rule is applied.
   that missed the broadcast corrects itself.
 - The room row and its spotlight survive a server restart.
 - Socket.IO already uses the deployed origin and reconnects automatically. No new
-  transport or CORS work is required.
+  transport or CORS work is required. The host or reverse proxy must allow WebSocket
+  upgrades at `/socket.io`; the current session already needs this.
 
 **Deployment constraint:** the current app keeps the active room and socket state in a
 single Node process. Run one server instance for now. Multiple instances or serverless
