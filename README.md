@@ -154,6 +154,11 @@ The Express server serves the built client and the API from one process.
     your chosen shape.
 25. Hold **Shift** and drag to point continuously. A normal click on empty scene space does
     nothing. This is intentional.
+26. Hold **Shift** and scroll over the scene, or press **Shift+=** / **Shift+-**, to zoom your own
+    view. Use the arrow keys, middle-mouse drag, or Space+drag to pan while zoomed. The percentage
+    button resets to 100%.
+27. Zoom the GM view and the player view separately. Each client keeps its own zoom and pan, and
+    both reset to 100% when the scene changes.
 
 To test more players, repeat the join flow in more browser windows. Each participant needs a
 display name plus a color and shape that are not already claimed; the join screen disables used
@@ -239,6 +244,10 @@ actions.
   player's marker to remove that player. Their token is deleted on every scene, their color and
   shape are freed, and their client shows a removed-from-session screen.
 - Shift+click ping and Shift+drag pointer, over the scene only.
+- Independent GM/player scene zoom and pan from 100% to 400%. Shift+wheel and Shift+=/− zoom,
+  arrow keys pan, and middle-mouse or Space+drag pan. The map, grid, tokens, pointers, and pings
+  scale together. The bottom-right controls show the percentage and reset to 100%.
+- Zoom and pan are local to each client, are never broadcast, and reset when the scene changes.
 - Color-plus-shape identification that does not rely on red/green distinction.
 - Browser refresh or server restart rejoin while the session remains active.
 - GM can end the session, invalidating the link.
@@ -280,7 +289,7 @@ src/
                       CampaignTokenEditor, SessionDrawers, SessionNavButton,
                       ShapeIcon, ParticipantStrip
     hooks/            useRoomSocket
-    lib/              API, sessionStorage, and token helpers
+    lib/              API, sessionStorage, token, and scene-camera helpers
     pages/            Dashboard, campaign builder, GM session, join, player session
     App.tsx
     main.tsx

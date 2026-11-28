@@ -6,10 +6,17 @@ interface GridOverlayProps {
   grid: GridSettings | null;
   aspect: number;
   faint?: boolean;
+  lineWidth?: number;
   style?: CSSProperties;
 }
 
-export function GridOverlay({ grid, aspect, faint = false, style }: GridOverlayProps) {
+export function GridOverlay({
+  grid,
+  aspect,
+  faint = false,
+  lineWidth = 1,
+  style,
+}: GridOverlayProps) {
   const geometry = gridGeometry(grid, aspect);
   if (!geometry) return null;
 
@@ -31,6 +38,7 @@ export function GridOverlay({ grid, aspect, faint = false, style }: GridOverlayP
           x2={x}
           y2={100}
           vectorEffect="non-scaling-stroke"
+          style={{ strokeWidth: `${lineWidth}px` }}
         />
       ))}
       {lines.horizontal.map((y, index) => (
@@ -41,6 +49,7 @@ export function GridOverlay({ grid, aspect, faint = false, style }: GridOverlayP
           x2={100}
           y2={y}
           vectorEffect="non-scaling-stroke"
+          style={{ strokeWidth: `${lineWidth}px` }}
         />
       ))}
     </svg>
