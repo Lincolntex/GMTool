@@ -1,74 +1,66 @@
 # Independent Scene Zoom Plan
 
-Status: Proposed
+Status: Ready for implementation
 
 Date: 2026-11-27
 
 ## 1. Goal
 
-Add independent, client-side zoom for the live scene so each GM and player can inspect the map at
-their own scale. Zoom must work for both grid scenes and non-grid scenes and must not move, sync, or
-resize any other participant's view.
+Add independent, client-side zoom and panning for the live scene so each GM and player can inspect
+the map at their own scale. Zoom must work for both grid scenes and non-grid scenes and must not
+move, sync, or resize any other participant's view.
 
-The scene continues to fit the workspace at 100%. Zoom is a local camera transform on top of that
-fit. The map background, grid, tokens, pointers, pings, and selection ghost all move and scale
-together so their alignment never changes.
+The scene continues to fit the workspace at 100%. Zoom and pan are a local camera transform on top
+of that fit. The map background, grid, tokens, pointers, pings, and selection ghost all move and
+scale together so their alignment never changes.
 
-## 2. Clarification questions and recommended defaults
+## 2. Confirmed decisions
 
-These are the decisions that affect the feel of the feature. The plan below uses the recommended
-defaults. Each can be changed without altering the architecture.
+These decisions were confirmed in review on 2026-11-27.
 
-1. **Should zoom include panning?**
-   - Recommended: yes. Zooming around the cursor is useful, but a zoomed map is frustrating
-     without a way to move around. Add middle-mouse drag and Space+drag panning in the same pass,
-     plus arrow-key panning when the scene is focused.
-   - Minimal alternative: ship zoom only and rely on cursor-anchored zoom plus a reset button.
+1. **Zoom and panning** — Implement both, using standard map-viewer behavior:
+   - Shift+wheel zooms around the pointer.
+   - Middle-mouse drag and Space+drag pan.
+   - Arrow keys pan while the scene is focused.
+   - On-screen `−` / `+` / reset buttons are included.
 
-2. **What is the zoom range?**
-   - Recommended: 100% (fit) to 400%, never below fit. At 400%, a typical 24-column grid shows
-     about six columns across, which is enough tactical detail without turning the image into
-     mush.
+2. **Zoom range** — 100% (fit) to 400%, never below fit. Revisit the maximum after table testing.
 
-3. **Should tokens and markers scale with the map or stay a fixed screen size?**
-   - Recommended: scale everything with the map. This keeps token-to-grid alignment exact and
-     makes small battlemaps readable. If pointer labels become too large at 4x, counter-scale just
-     the labels as a polish step.
+3. **What scales** — The whole map: background, grid, tokens, pointers, pings, and placement
+   ghost. Token-to-grid alignment stays exact at every zoom level.
 
-4. **Should zoom persist?**
-   - Recommended for the first pass: keep the camera in component state and reset to 100% when the
-     active scene changes or the page reloads.
-   - Optional follow-up: store one camera per room and scene in `sessionStorage`, keyed by
-     `roomId + sceneIndex`. This preserves zoom across refresh and scene switches without a
-     database change and remains local to that browser tab.
+4. **Persistence** — Reset to 100% on scene change and page reload. No per-scene or per-room camera
+   storage in this pass.
 
-5. **Which keyboard fallback should be primary?**
-   - Recommended: `Shift+wheel` for pointer-anchored zoom, `Shift+ArrowUp` / `Shift+ArrowDown` as
-     the arrow fallback, `Shift+=` / `Shift+-` as an additional shortcut, and `Shift+0` to reset.
-     Plain arrow keys pan while the scene has focus and zoom is above 100%.
+5. **Keyboard controls** — Only `Shift+wheel` and `Shift+=` / `Shift+-` zoom. Arrow keys are
+   dedicated to panning when the scene is focused. `Shift+0` resets to 100% as a convenience.
+   `Shift+ArrowUp` / `Shift+ArrowDown` are not zoom shortcuts.
 
-6. **Should the GM's zoom ever control the players?**
-   - Recommended: no. Zoom is a per-client camera control only. Nothing is sent over the socket and
-     nothing is stored on the server. This is the simplest and most predictable behavior for a
-     remote table.
+6. **Realtime behavior** — Zoom remains local to each client. Nothing is sent over the socket and
+   nothing is stored on the server.
 
-7. **Should touch pinch zoom be supported now?**
-   - Recommended: not in this pass. The on-screen `−` / `+` / reset controls cover tablets and
-     phones. Pinch can be added later with the same camera model.
+7. **Mobile** — Mobile optimization is tabled. On-screen `−` / `+` / reset buttons are included
+   because they are simple, useful on desktop, and the best fallback for touch later. Pinch zoom
+   remains out of scope.
+
+8. **Consistency** — Keep the zoom controls and behavior identical for GM and player views and for
+   grid and non-grid scenes. The control cluster stays in the same position, uses the same shortcuts,
+   and resets the same way so users only need to learn it once.
 
 ## 3. Scope
 
 ### In scope
 
-- Local zoom for GM and player live sessions.
+- Local zoom and panning for GM and player live sessions.
 - Grid and non-grid scenes.
-- Cursor-anchored wheel zoom.
-- Keyboard zoom fallback and keyboard panning.
-- On-screen zoom controls and reset.
-- Optional middle-mouse and Space+drag panning.
+- Cursor-anchored Shift+wheel zoom.
+- Shift+= / Shift+- keyboard zoom and Shift+0 reset.
+- Arrow-key panning and middle-mouse / Space+drag panning.
+- On-screen `−` / `+` / reset controls.
 - Clamping, resize handling, and scene-change reset.
 - Alignment coverage for token placement, movement, pings, and pointers.
 - Accessibility and reduced-motion behavior.
+- A recommended image-resolution callout in the campaign editor.
 - README and implementation-note updates.
 
 ### Out of scope
@@ -76,6 +68,7 @@ defaults. Each can be changed without altering the architecture.
 - Server, database, or socket changes.
 - Syncing one participant's camera to another participant.
 - GM "follow my view" or forced zoom.
+- Per-scene or per-room camera persistence.
 - Pinch zoom and touch gesture recognition.
 - Rotating, flipping, or skewing the scene.
 - Zooming the campaign builder preview. The builder can reuse the same camera helper later.
@@ -126,10 +119,11 @@ same frame element is still the measured element.
 
 The scene becomes focusable (`tabIndex={0}`) with a visible focus ring.
 
-- `Shift+ArrowUp` / `Shift+=` / `Shift++`: zoom in around the viewport center.
-- `Shift+ArrowDown` / `Shift+-`: zoom out around the viewport center.
+- `Shift+=` / `Shift++`: zoom in around the viewport center.
+- `Shift+-`: zoom out around the viewport center.
 - `Shift+0`: reset to 100%.
 - Plain `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`: pan when zoom is above 100%.
+- `Shift+ArrowUp` and `Shift+ArrowDown` are not zoom shortcuts.
 - Do not handle keys when focus is in an input, textarea, select, or contenteditable element.
 - `preventDefault()` only for the shortcuts the scene handles.
 
@@ -142,7 +136,7 @@ frame:
 - Current percentage, which is also a reset button (`125%`, `200%`, `100%`).
 - `+` zoom in.
 - A reset icon or the percentage button performs the reset.
-- Tooltips describe the shortcut, for example `Zoom in (Shift+wheel or Shift+ArrowUp)`.
+- Tooltips describe the shortcut, for example `Zoom in (Shift+wheel or Shift+=)`.
 
 The controls are ordinary buttons, so they work on touch devices and with screen readers. They do
 not scale with the map and remain usable at any zoom level.
@@ -268,7 +262,7 @@ centered.
 - Recompute the base frame size after `ResizeObserver` updates.
 - Re-clamp the camera with the new viewport and frame dimensions.
 - Reset to 100% when the active scene changes.
-- Reset to 100% when the background/aspect changes, unless per-scene persistence is implemented.
+- Reset to 100% when the background/aspect changes.
 - When the window resizes, preserve the scale and clamp the existing pan. Do not leave the map
   half outside the viewport.
 
@@ -312,10 +306,11 @@ Use a ref for the current camera inside the listener or register the listener on
 - Attach `keydown` to the focused scene stage element, not to `window`, so the scene must be
   focused before shortcuts apply.
 - Ignore events from form controls and contenteditable elements.
-- `Shift+ArrowUp` / `Shift+ArrowDown` zoom by `KEY_ZOOM_FACTOR`.
-- `Shift+=` and `Shift++` zoom in; `Shift+-` zooms out.
+- `Shift+=` and `Shift++` zoom in; `Shift+-` zooms out. Apply `KEY_ZOOM_FACTOR` around the viewport
+  center.
 - `Shift+0` resets.
-- Plain arrow keys pan by a fixed fraction of the viewport, for example 8% per key press.
+- Arrow keys pan by a fixed fraction of the viewport, for example 8% per key press.
+- `Shift+ArrowUp` and `Shift+ArrowDown` are left alone as zoom shortcuts.
 - Call `event.preventDefault()` for handled keys.
 
 ### Pan gestures
@@ -376,36 +371,49 @@ Add regression coverage for:
 - Shift+drag pointer broadcast at multiple zoom levels.
 - A remote pointer or ping arriving while the local view is zoomed.
 
-## 9. Persistence
-
-### Recommended first pass
+## 9. Camera lifetime and persistence
 
 Keep the camera in `SceneStage` state only:
 
 - Reset to `{ scale: 1, x: 0, y: 0 }` when `room.activeSceneIndex` changes.
 - Reset when the background key or aspect changes.
 - Reset on page reload.
+- Keep the scale and clamp the pan when the window resizes.
 - Provide the reset button as the manual escape hatch.
 
-This is the smallest change and fully satisfies independent zoom.
+There is no `sessionStorage`, `localStorage`, database, or socket persistence in this pass. Each
+new scene starts at 100%, which matches the confirmed decision and keeps the feature predictable.
 
-### Optional per-scene memory
+## 10. Campaign editor image resolution guidance
 
-If zoom should survive refresh and scene switching, add a local-only camera store:
+The zoom feature makes low-resolution background images more noticeable. Add a short guidance
+callout in the campaign editor near the background upload field.
 
-- Key: `gmtool:scene-camera:<roomId>:<sceneIndex>` in `sessionStorage`.
-- Value: `{ scale, centerX, centerY }`, where `center` is the normalized map point at the
-  viewport center.
-- On mount, compute the pan from the stored center using the current frame and viewport size, then
-  clamp.
-- On change, save the scale and center with a short debounce.
-- Ignore or remove invalid entries.
-- Keep this in session storage, not the database, because it is a per-device view preference.
+Location: `src/client/pages/CampaignBuilderPage.tsx`, beside the existing
+`PNG, JPEG, or WebP. Maximum 10 MB.` text under **Background image**.
 
-Do not use `localStorage` by default. It would carry a camera into another session or another room
-unless the key is carefully scoped. `sessionStorage` better matches "my current view".
+Proposed copy:
 
-## 10. Accessibility
+> PNG, JPEG, or WebP. Maximum 10 MB. For sharp zoomed play, use at least 2560 px on the longest
+> edge. 3840 px or larger is recommended if you expect to zoom to 200–400%.
+
+Suggested guidance:
+
+| Longest edge | Best for |
+|---|---|
+| 1920 px | 100–150% zoom |
+| 2560 px | Up to about 200% zoom |
+| 3840 px or larger | 300–400% zoom |
+
+The callout is informational only. Do not block uploads based on dimensions, because file size,
+compression, and available memory vary. Keep the existing 10 MB upload limit and accepted file
+types. The scene already preserves the image aspect ratio, so the recommendation is about sharpness,
+not layout.
+
+This can ship with the zoom work or as a small standalone copy change. Add it to the same PR unless
+a separate content pass is preferred.
+
+## 11. Accessibility
 
 - Give the scene a visible focus ring and `tabIndex={0}`.
 - Add a concise `aria-label` or `aria-describedby` that mentions the zoom shortcuts.
@@ -422,7 +430,7 @@ unless the key is carefully scoped. `sessionStorage` better matches "my current 
 - Do not rely on color alone for the controls; use icons plus labels/tooltips.
 - Keep tooltips on hover and focus.
 
-## 11. Performance
+## 12. Performance
 
 - Animate or update only `transform`; do not change width, height, top, or left for zoom.
 - Update the camera at most once per animation frame for wheel input.
@@ -435,7 +443,7 @@ unless the key is carefully scoped. `sessionStorage` better matches "my current 
 - The existing `scene-backdrop` is already blurred and fixed; leave it outside the transformed frame.
 - Do not add transitions longer than roughly 80ms, and disable them under reduced motion.
 
-## 12. Interaction compatibility
+## 13. Interaction compatibility
 
 - **Drawers:** zoom only affects the scene frame. Opening the left or right drawer still overlays
   the same stage without resizing the scene.
@@ -446,22 +454,22 @@ unless the key is carefully scoped. `sessionStorage` better matches "my current 
 - **Shift+drag pointer broadcast:** suppress zoom while the drag is active. Do not start a pan with
   Shift held.
 - **Local player pings:** percentages scale with the frame and stay on the clicked token.
-- **Scene switching:** reset the camera before rendering the new scene, or restore a per-scene
-  camera if persistence is enabled.
+- **Scene switching:** reset the camera to 100% before rendering the new scene.
 - **GM removal and presence:** no interaction. Zoom state is local and disappears with the tab.
 - **Resize:** re-clamp the camera after `ResizeObserver` updates.
 
-## 13. Risks and mitigations
+## 14. Risks and mitigations
 
 | Risk | Why it matters | Mitigation |
 |---|---|---|
 | Token, ghost, or ping coordinates drift after zoom | Misplaced tokens would corrupt play | Keep `getBoundingClientRect()` as the coordinate source; regression-test placement and pings at every zoom step |
 | Shift+wheel conflicts with browser scrolling | Page jumps while trying to zoom | Native non-passive listener; `preventDefault()` only for Shift+wheel over the scene |
-| Shift+arrow conflicts with page scroll or text selection | Keyboard fallback becomes unreliable | Require scene focus; ignore form fields; `preventDefault()` handled shortcuts |
+| Arrow keys conflict with page scroll or text selection | Keyboard panning becomes unreliable | Require scene focus; ignore form fields; `preventDefault()` handled arrows |
 | Ctrl/Cmd+wheel is hijacked | Breaks browser zoom and accessibility | Ignore any modifier combination except plain Shift |
+| Controls or behavior differ between GM/player or grid/non-grid scenes | Users have to relearn the interaction | Same control placement, shortcuts, scale range, reset behavior, and cursor states in every session view |
 | Zoom and pan math drifts or exposes blank space | Map feels broken at high zoom | Single camera model, pure clamp functions, frame/viewport center math, reset at 100% |
 | Grid strokes thicken at high zoom | Grid becomes visually heavy | Counter-scale stroke width by the zoom factor |
-| Bitmap background blurs at 400% | Map detail becomes soft | Cap at 400%; recommend high-resolution uploaded maps; do not use nearest-neighbor rendering for photos |
+| Bitmap background blurs at 400% | Map detail becomes soft | Cap at 400%; add the recommended-resolution callout in the campaign editor; do not use nearest-neighbor rendering for photos |
 | Pointer drag and zoom interact | Broadcast pointer can jump or a drag can start a pan | Ignore wheel zoom during active pointer drag; never start pan with Shift held |
 | Camera state goes stale on resize | Map can drift out of view | Re-clamp on `ResizeObserver`; reset on aspect change |
 | React wheel handler is passive | Zoom cannot prevent page scroll | Native listener with `{ passive: false }` |
@@ -471,7 +479,7 @@ unless the key is carefully scoped. `sessionStorage` better matches "my current 
 | Touch users cannot Shift+scroll | Feature unavailable on tablets | On-screen `−` / `+` / reset buttons; pinch can come later |
 | Focus and keyboard conflicts | Accessibility regression | Focusable scene, visible focus ring, ignored form fields, no focus trap, reduced-motion support |
 
-## 14. Testing plan
+## 15. Testing plan
 
 ### Manual matrix
 
@@ -488,10 +496,11 @@ Test each combination:
 
 - Shift+wheel over the scene zooms and does not scroll the page.
 - Normal wheel over the scene does nothing different from today.
-- Shift+ArrowUp/Down, Shift+=/−, and Shift+0 work only when the scene is focused.
-- Plain arrow keys pan only when zoomed and focused.
+- Shift+=/− and Shift+0 work only when the scene is focused.
+- Arrow keys pan only when zoomed and focused; Shift+ArrowUp/Down do not zoom.
 - Middle-drag and Space+drag pan and clamp correctly.
 - Zoom controls and percentage reset work with mouse and keyboard.
+- Controls and shortcuts behave identically in GM and player views and on grid and non-grid scenes.
 - The map point under the cursor stays under the cursor while wheel zooming.
 - The map stays centered at 100% and does not expose blank space beyond the frame while zoomed.
 
@@ -511,8 +520,7 @@ Test each combination:
 - Zoom the player view; the GM view stays at its own scale.
 - Open scene drawers on both clients; each keeps its own zoom.
 - Reload one client; the other client's view is unaffected.
-- If persistence is enabled, confirm each scene restores its own camera and invalid entries are
-  ignored.
+- Change scenes on one client; its zoom resets to 100% while the other client's view is unaffected.
 
 ### Regression checks
 
@@ -520,15 +528,16 @@ Test each combination:
 - Shift+click and Shift+drag pointer behavior.
 - GM token Hide/Show, Stats, Delete, and creation.
 - Player local pings and Character/Domain cards.
-- Scene switching with per-scene tokens.
+- Scene switching with per-scene tokens and zoom reset.
 - Grid visibility toggle and faint placement grid.
 - GM participant removal.
+- Campaign editor upload guidance appears with the recommended resolutions.
 - `npm run typecheck`
 - `npm run build`
 - `npm audit --omit=dev`
 - No browser console errors.
 
-## 15. Rollout phases
+## 16. Rollout phases
 
 ### Phase 1 — Camera foundation
 
@@ -541,7 +550,7 @@ Test each combination:
 ### Phase 2 — Inputs and controls
 
 - Add the native Shift+wheel listener.
-- Add keyboard zoom and reset.
+- Add `Shift+=` / `Shift+-` zoom and `Shift+0` reset.
 - Add the on-screen zoom controls.
 - Add cursor and focus states.
 - Verify wheel does not interfere with page scroll or browser zoom.
@@ -549,7 +558,7 @@ Test each combination:
 ### Phase 3 — Panning
 
 - Add middle-drag and Space+drag panning.
-- Add arrow-key panning.
+- Add arrow-key panning when the scene is focused.
 - Add pan clamping and resize handling.
 - Verify Shift+drag pointer behavior is unchanged.
 
@@ -557,36 +566,53 @@ Test each combination:
 
 - Counter-scale grid strokes.
 - Add zoom announcements and reduced-motion handling.
-- Add optional per-scene session storage if approved.
+- Add the campaign editor image-resolution callout.
 - Update `README.md` and `ALPHA_IMPLEMENTATION.md`.
 - Run the full browser regression matrix.
 - Open a pull request to `main`.
 
-## 16. Acceptance criteria
+## 17. Acceptance criteria
 
 The feature is complete when:
 
 - GM and players can zoom independently without affecting each other.
 - Zoom works on grid and non-grid scenes.
 - Shift+wheel zooms around the pointer.
-- Shift+ArrowUp/Down (and Shift+=/−) zoom from the keyboard when the scene is focused.
-- Shift+0 resets to 100%.
+- Shift+=/− zoom from the keyboard when the scene is focused; Shift+0 resets to 100%.
+- Arrow keys pan when the scene is focused and zoom is above 100%.
 - On-screen zoom controls work for mouse, keyboard, and touch.
 - Zoom is clamped to 100%–400%.
 - Panning works when zoomed and is clamped so the map cannot be lost.
+- Zoom resets on scene change and page reload.
+- Zoom controls and behavior are identical in GM and player views and on grid and non-grid scenes.
 - Token placement, movement, pings, pointers, and ghosts remain aligned at every zoom level.
 - The scene frame remains the same fit size at 100%; drawers and app layout are unaffected.
 - Normal scrolling and browser zoom shortcuts are not hijacked.
 - Reduced-motion and keyboard accessibility are respected.
+- The campaign editor shows recommended image resolutions for zoomed play.
 - Typecheck, production build, audit, and browser smoke tests pass.
 - README and implementation notes describe the shortcuts and the independent-view behavior.
 
-## 17. Decisions to confirm before implementation
+## 18. Resolved decisions and remaining questions
 
-1. Include panning in the first pass, or ship zoom-only first?
-2. Zoom range: 100%–400%, or a different maximum?
-3. Whole-map scaling, or fixed-size tokens and labels over a scaled background/grid?
-4. Reset on scene change and refresh, or remember one camera per scene locally?
-5. Keep the scene keyboard shortcuts strictly Shift-based, or also allow plain `+` / `−` when the
-   scene is focused?
-6. Should there be a GM "follow my view" option later, or should views always remain unlinked?
+Resolved in review:
+
+1. Include panning in the first pass using standard map-viewer behavior.
+2. Zoom range is 100%–400%, subject to later testing.
+3. The whole map scales, including tokens and markers.
+4. The camera resets on scene change and page reload; there is no persistence.
+5. Zoom is Shift+wheel or Shift+=/−. Arrow keys pan. On-screen controls are included.
+6. Mobile is tabled. On-screen `−` / `+` / reset buttons are included for desktop and future touch
+   use.
+7. The campaign editor gets a recommended-resolution callout.
+
+Remaining minor questions:
+
+1. **Reset shortcut:** the plan keeps `Shift+0` as a reset convenience. If "only Shift+wheel or
+   Shift+=/−" should exclude even the reset shortcut, remove it and rely on the on-screen percentage
+   button.
+2. **“Aligned” controls:** this plan interprets the request as keeping the zoom/pan controls and
+   behavior identical across GM/player views and grid/non-grid scenes. Confirm if a different kind
+   of alignment was intended.
+3. **Image callout timing:** the plan includes the campaign editor callout in the same PR as zoom.
+   It can ship separately if preferred.
