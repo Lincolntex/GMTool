@@ -214,7 +214,7 @@ function PlayerSession({ roomId, token }: { roomId: string; token: string }) {
 
           <div className="header-table">
             <span className="header-label">Table</span>
-            <ParticipantStrip room={room} />
+            <ParticipantStrip room={room} role="player" selfId={selfId} />
           </div>
         </header>
 
