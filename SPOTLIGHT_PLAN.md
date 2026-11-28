@@ -1,6 +1,6 @@
 # Spotlight Toggle Plan
 
-Status: Direction approved. Three follow-up questions remain before implementation.
+Status: Direction approved. Four follow-up questions remain before implementation.
 
 ## 1. Request
 
@@ -168,6 +168,14 @@ The original questions are resolved:
    Recommendation: show one short, non-dismissible notice when GM spotlight turns on,
    then rely on the persistent badge. No notice is needed when returning to Players.
 
+4. **A new player joining during GM spotlight.** With placement locked, their token
+   starts in the drawer and they cannot place it until the mode changes. The GM can
+   place it for them. Is that acceptable, or should a newly joined player get a one-time
+   placement exception?
+   Recommendation: no exception. The GM can place the token, and the badge explains why
+   the player cannot. A special join-time exception would create a second movement rule
+   and an inconsistent first experience.
+
 ## 7. Concerns and suggested solutions
 
 ### Server authority
@@ -234,9 +242,9 @@ during GM spotlight must see the badge and the locked state on their first rende
 
 ### New players and simultaneous moves
 
-- A player who joins during GM spotlight cannot place their token until the mode changes.
-  The GM can place it for them. This is a direct consequence of the rule, not a special
-  case.
+- A player who joins during GM spotlight cannot place their token until the mode changes,
+  unless the follow-up question decides on a join-time exception. The recommended rule
+  is no exception; the GM can place it for them.
 - During Players spotlight, the GM and the owner can both move the same token. The last
   move accepted by the server wins, which matches the current behavior. No extra
   concurrency control is needed for this pass.
