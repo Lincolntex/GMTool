@@ -1,6 +1,6 @@
 # Spotlight Toggle Plan
 
-Status: Direction approved. Two final questions remain: deployment topology and badge emphasis.
+Status: Direction approved. Three tint details remain before implementation.
 
 ## 1. Request
 
@@ -34,7 +34,12 @@ Add a session-wide **Spotlight** mode that the GM can switch between **Players**
 - The Character drawer movement icon stays visible and is disabled with explanatory
   copy. The rest of the drawer, tabs, notes, and stats remain fully usable.
 - Players get a persistent spotlight badge or alert, with no popup and nothing to click
-  or acknowledge. Because the mode will switch often, avoid repeated toasts.
+  or acknowledge. Because the mode will switch often, avoid repeated toasts and avoid a
+  pulse animation.
+- While the GM has the spotlight, the player's map gets a subtle locked tint in addition
+  to the persistent badge. The tint is static while the state holds. The intent is to
+  tint the background/grid, not the tokens, pings, or pointers, so the map still reads
+  clearly.
 - A player who joins during GM spotlight cannot place their token until the mode switches
   back to Players. They can place it immediately when the mode returns.
 - During Players spotlight, if the GM and the owner move the same token, the last move
@@ -99,10 +104,10 @@ long the GM control spends pending, not whether the rule is applied.
   upgrades at `/socket.io`; the current session already needs this.
 
 **Deployment constraint:** the current app keeps the active room and socket state in a
-single Node process. Run one server instance for now. Multiple instances or serverless
-deployments would need sticky sessions and a shared room store/Socket.IO adapter. That
-constraint already applies to `gridVisible`, presence, and the active room; the spotlight
-does not add a new one.
+single Node process. The initial deployment is confirmed as one server instance. Multiple
+instances or serverless deployments would need sticky sessions and a shared room
+store/Socket.IO adapter. That constraint already applies to `gridVisible`, presence, and
+the active room; the spotlight does not add a new one.
 
 ## 5. Proposed behavior
 
@@ -164,10 +169,12 @@ announced through `aria-live="polite"` when it changes.
 - The remove/unplace action is hidden or disabled while locked.
 - Pings remain enabled. They do not change token state and do not weaken the movement
   lock.
-- The persistent player badge is the alert. On a mode change, briefly highlight or pulse
-  the badge for a moment and announce the change with `aria-live`. Do not show a modal,
-  toast, or anything that requires a click or acknowledgement. Since the spotlight will
-  switch often, avoid repeated transient messages.
+- The persistent player badge is the alert. Do not add a pulse or repeated animation;
+  the mode switches often. Announce the change with `aria-live`. Do not show a modal,
+  toast, or anything that requires a click or acknowledgement.
+- While GM spotlight is active, a subtle static tint covers the map background/grid.
+  Combined with the persistent badge, this makes the locked state obvious without
+  motion. Tokens, pings, and pointers stay untinted and fully legible.
 
 ## 6. Review decisions
 
@@ -195,25 +202,30 @@ The original questions are resolved:
    token state.
 2. **Character drawer movement icon** — keep it visible and disable it with explanatory
    copy. Everything else in the drawer remains usable.
-3. **Badge/alert** — use a persistent badge with a brief non-blocking highlight or pulse
-   when the mode changes. No popup, toast, or acknowledgement. Because the mode switches
-   often, avoid repeated transient messages.
+3. **Badge/alert** — use a persistent badge with no popup, toast, acknowledgement, or
+   pulse. While GM spotlight is active, add a subtle static map tint as the visual lock
+   cue. The badge remains the persistent state indicator.
 4. **New players** — no placement exception. A player who joins during GM spotlight can
    place their token as soon as the mode returns to Players.
 
-## 6b. Final questions
+## 6b. Tint details to confirm
 
-1. **Deployment topology.** Will the app run as a single Node/Socket.IO server instance
-   (the current architecture) for this deployment? The active room and sockets are held
-   in memory, so the spotlight behaves correctly on a single instance. Running multiple
-   instances or serverless would require sticky sessions and shared room state, which is
-   an infrastructure change beyond this feature.
-   Recommendation: deploy as a single instance for now and document the constraint.
+The deployment is confirmed as a single instance for now.
 
-2. **Badge emphasis.** Is a persistent badge with a brief highlight/pulse when the mode
-   changes acceptable, or do you prefer a completely static badge? The highlight gives a
-   little attention without a popup or acknowledgement.
-   Recommendation: persistent badge plus a brief highlight and `aria-live` announcement.
+1. **Player view only.** Should the tint appear only in player views, leaving the GM map
+   untinted and fully clear while they position tokens?
+   Recommendation: yes. The GM control and header already show the state; tinting the GM
+   map would make positioning harder.
+
+2. **Tint scope.** Should the tint sit over the background and grid only, leaving tokens,
+   pings, and pointers fully untinted? That keeps the battlefield readable while still
+   signaling the lock.
+   Recommendation: yes. Use a low-opacity overlay below the token and pointer layers.
+
+3. **Motion.** Should the tint appear instantly with no transition, or use a very short
+   fade? Since the spotlight flips often, no pulse is wanted either way.
+   Recommendation: a very short fade (about 120–150 ms) or an instant switch; no pulse.
+   Prefer the shorter/simpler option if there is any doubt.
 
 ## 7. Concerns and suggested solutions
 
@@ -377,6 +389,7 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 - Add the read-only spotlight badge to the player title row.
 - Add an effect that clears `placingTokenId` when the spotlight becomes `'gm'`.
 - Compute `movementLocked = role === 'player' && room.spotlight === 'gm'`.
+- Render the map tint only when `movementLocked` is true, so the GM map stays clear.
 - Pass the value to `SceneStage` and `SessionDrawers`, or compute it from `room` in each.
 - In `SceneStage`:
   - Do not allow `onStartPlacement` for the player's own token while locked.
@@ -395,7 +408,14 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 - Add `.spotlight-control`, `.spotlight-segments`, `.spotlight-segment`, and
   `.spotlight-badge` styles using the existing header label, accent, and chip patterns.
 - Add a locked/GM state that uses a lock icon or amber accent, with text.
-- Add a brief badge highlight/pulse when the mode changes. Disable the animation under
+- Add a `.scene-spotlight-tint` overlay for player views while GM spotlight is active:
+  - `position: absolute; inset: 0; pointer-events: none; z-index: 2;`
+  - Place it after the grid overlay and before the token layer so the grid is tinted but
+    tokens, pings, and pointers stay clear. Tokens use z-index 3 and pointers z-index 4.
+  - Use a low-opacity dark/amber wash plus an optional inset accent border. Keep it
+    subtle enough that the map remains readable.
+- Do not add a badge pulse or repeated animation. A very short opacity transition is
+  acceptable if the tint is not switched instantly; disable motion under
   `prefers-reduced-motion`.
 - Add responsive wrapping for the GM actions row.
 - Do not add a modal or acknowledgement-based notice.
@@ -413,8 +433,11 @@ Use a GM window and two player windows.
 - A new room starts on Players.
 - The GM sees a segmented control in the session header; clicking Players or GM
   updates both players within a moment.
-- Players see the badge update to the active mode. The badge briefly highlights or
-  pulses; no modal, toast, or acknowledgement appears.
+- Players see the badge update to the active mode. The badge does not pulse; no modal,
+  toast, or acknowledgement appears.
+- While GM spotlight is active, the player map shows a subtle static tint. Tokens,
+  pings, and pointers remain untinted; clicks and pings still work through the tint.
+  The GM map stays untinted.
 - The GM control shows a pending state while the request is in flight and disables
   while the socket is reconnecting.
 - On Players spotlight:
