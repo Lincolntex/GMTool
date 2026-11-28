@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gmtool
+      POSTGRES_PASSWORD: gmtool
+      POSTGRES_DB: gmtool
+    ports:
+      - "5433:5432"
+    volumes:
+      - gmtool_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gmtool -d gmtool"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gmtool_pgdata:

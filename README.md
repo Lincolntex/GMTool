@@ -4,7 +4,7 @@ A local-only alpha for campaign prep and a shared Daggerheart session table.
 
 The current shell includes:
 
-- A GM dashboard with an in-memory campaign list.
+- A GM dashboard with a PostgreSQL-backed campaign list.
 - A campaign builder with multiple scenes, a scene stepper, a preview window, an optional
   square token grid, and pre-launch GM token placement.
 - Copy, Edit, Delete, and Launch actions for each campaign.
@@ -12,9 +12,10 @@ The current shell includes:
   join link/PIN.
 - Slide-out session drawers for scenes, tokens, characters, stats placeholders, and notes.
 
-Campaign data is intentionally temporary for now. It resets when the server restarts.
+Campaigns, scenes, tokens, live rooms, and participants persist in PostgreSQL. Pointers, socket
+connections, and presence remain ephemeral.
 
-No movement rules, movement approvals, character sheets, note storage, or database persistence yet.
+No movement rules, movement approvals, character sheets, or note storage yet.
 
 ---
 
@@ -22,9 +23,10 @@ No movement rules, movement approvals, character sheets, note storage, or databa
 
 - Node.js **20 or newer**
 - npm
+- PostgreSQL **16 or newer**, or Docker Desktop
 - A modern desktop browser
 
-The alpha was developed on Windows with Node 20.15 and npm 10.7.
+The alpha was developed on Windows with Node 20.15, npm 10.7, and PostgreSQL 16.
 
 ---
 
@@ -33,6 +35,8 @@ The alpha was developed on Windows with Node 20.15 and npm 10.7.
 ```powershell
 npm install
 Copy-Item .env.example .env
+docker compose up -d db
+npm run db:migrate
 ```
 
 Edit `.env` and set a GM passphrase:
@@ -40,10 +44,31 @@ Edit `.env` and set a GM passphrase:
 ```env
 PORT=3001
 GM_PASSPHRASE=your-local-passphrase
+DATABASE_URL=postgres://gmtool:gmtool@localhost:5433/gmtool
+GM_SECRET=replace-with-a-long-random-string
 ```
 
+The included Compose service exposes PostgreSQL on **5433** so it does not conflict with a
+Postgres installation already using 5432. If you use your own database, change `DATABASE_URL`.
+
 `GM_SECRET` is optional. If it is omitted, a random secret is generated each time the server
-starts, which simply means the GM has to log in again after a restart.
+starts, which means the GM has to log in again after a restart. Set it to keep the login cookie
+valid across restarts.
+
+For local development, the server applies pending Drizzle migrations before it starts. You can
+also run them explicitly with `npm run db:migrate`.
+
+### Database commands
+
+```powershell
+npm run db:generate   # generate a migration after changing server/db/schema.ts
+npm run db:migrate    # apply pending migrations
+npm run db:check      # check migration files
+npm run db:studio     # inspect the database
+```
+
+Stop the database with `docker compose down`. The named `gmtool_pgdata` volume keeps the data.
+Use `docker compose down -v` only when you intentionally want to delete all persisted data.
 
 ---
 
@@ -140,7 +165,7 @@ Each campaign row shows:
 - A vertical ellipsis menu with:
   - **Copy** — duplicates the campaign and its scenes.
   - **Edit** — reopens the campaign builder.
-  - **Delete** — permanently removes the campaign from the in-memory list.
+  - **Delete** — permanently removes the campaign and its scenes from PostgreSQL.
   - **Launch** — starts a live session at the campaign's first scene.
 
 If a session is already live, the dashboard shows a **Live session** banner with Resume and End
@@ -151,7 +176,7 @@ actions.
 ## What works
 
 - Local GM passphrase.
-- In-memory campaign list.
+- PostgreSQL-backed campaign list with Drizzle migrations.
 - Multi-scene campaign builder with scene stepper and preview.
 - Scene background upload or snow/grass/dungeon presets.
 - Optional per-scene square grid with a size slider, single-step arrows, offset nudges, and
@@ -196,12 +221,11 @@ actions.
 - Live participant strip with color-and-shape markers and online/offline state.
 - Shift+click ping and Shift+drag pointer, over the scene only.
 - Color-plus-shape identification that does not rely on red/green distinction.
-- Browser refresh rejoin while the server is running.
+- Browser refresh or server restart rejoin while the session remains active.
 - GM can end the session, invalidating the link.
 
 ## What does not exist yet
 
-- Persistence across a server restart.
 - Movement rules, movement allowance, board lock, or movement approvals.
 - Multi-square tokens, token images, or token stacking outside the hidden-token case.
 - Daggerheart stats and abilities. The Stats drawers are placeholders.
@@ -209,7 +233,7 @@ actions.
 - Character sheets, characters, or character selection.
 - Frames, session history, or snapshots.
 - Notes storage, party journal, Fear, countdowns, or dice. The Notes drawer is a placeholder.
-- Docker or remote deployment.
+- Remote deployment beyond the local Docker Postgres service.
 - Voice, video, or text chat.
 - Rate limiting or hardened public-internet security.
 
@@ -218,11 +242,18 @@ actions.
 ## Project structure
 
 ```text
+compose.yaml          Local PostgreSQL service
+drizzle.config.ts     Drizzle schema and migration configuration
 server/
   auth.ts             GM passphrase cookie
-  campaigns.ts        Temporary in-memory campaign store
-  index.ts            Express API and static serving
-  rooms.ts            In-memory live room, scene, token, participant, and pointer state
+  campaigns.ts        PostgreSQL campaign repository
+  db/
+    client.ts         Postgres pool and Drizzle client
+    schema.ts         Tables, enums, constraints, and indexes
+    migrate.ts        Migration runner
+    migrations/       Generated Drizzle SQL migrations
+  index.ts            Express API, migrations, startup, and static serving
+  rooms.ts            Database-backed rooms plus in-memory socket/pointer presence
   socket.ts           Socket.IO room, pointer, token, and grid events
 src/
   client/

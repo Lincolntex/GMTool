@@ -70,6 +70,21 @@ function reply(ack: unknown, response: SocketAck): void {
   if (typeof ack === 'function') ack(response);
 }
 
+function handleAck(
+  ack: Ack | undefined,
+  fallback: string,
+  task: () => Promise<SocketAck>,
+): void {
+  void task().then(
+    (response) => reply(ack, response),
+    (error: unknown) =>
+      reply(ack, {
+        ok: false,
+        error: error instanceof Error ? error.message : fallback,
+      }),
+  );
+}
+
 function tokenActor(socket: Socket, room: Room): TokenActor | null {
   if (socket.data.role === 'gm') {
     return { role: 'gm', participantId: 'gm' };
@@ -168,10 +183,15 @@ export function registerSocketHandlers(io: Server): void {
       }
 
       const participantToken =
-        typeof payload?.participantToken === 'string' ? payload.participantToken : undefined;
+        typeof payload?.participantToken === 'string'
+          ? payload.participantToken
+          : undefined;
       const participant = findParticipantByToken(room, participantToken);
       if (!participant) {
-        sendRoomError(socket, 'Your session identity is no longer valid. Rejoin from the link.');
+        sendRoomError(
+          socket,
+          'Your session identity is no longer valid. Rejoin from the link.',
+        );
         return;
       }
 
@@ -185,157 +205,129 @@ export function registerSocketHandlers(io: Server): void {
     });
 
     socket.on('token:create', (payload: TokenCreatePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      if (!room) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
-      if (socket.data.role !== 'gm') {
-        reply(ack, { ok: false, error: 'Only the GM can add tokens.' });
-        return;
-      }
+      handleAck(ack, 'Could not add token.', async () => {
+        const room = currentRoom(socket);
+        if (!room) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
+        if (socket.data.role !== 'gm') {
+          return { ok: false, error: 'Only the GM can add tokens.' };
+        }
 
-      const kind = payload?.kind;
-      if (kind !== 'enemy' && kind !== 'npc') {
-        reply(ack, { ok: false, error: 'Unknown token type.' });
-        return;
-      }
+        const kind = payload?.kind;
+        if (kind !== 'enemy' && kind !== 'npc') {
+          return { ok: false, error: 'Unknown token type.' };
+        }
 
-      try {
-        const token = createGmToken(room, kind, payload?.name);
+        const token = await createGmToken(room, kind, payload?.name);
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true, token });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not add token.',
-        });
-      }
+        return { ok: true, token };
+      });
     });
 
     socket.on('token:place', (payload: TokenPlacePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      const actor = room ? tokenActor(socket, room) : null;
-      if (!room || !actor) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
+      handleAck(ack, 'Could not move token.', async () => {
+        const room = currentRoom(socket);
+        const actor = room ? tokenActor(socket, room) : null;
+        if (!room || !actor) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
 
-      const tokenId = typeof payload?.tokenId === 'string' ? payload.tokenId : '';
-      const col = Number(payload?.col);
-      const row = Number(payload?.row);
+        const tokenId =
+          typeof payload?.tokenId === 'string' ? payload.tokenId : '';
+        const col = Number(payload?.col);
+        const row = Number(payload?.row);
 
-      try {
-        placeToken(room, actor, tokenId, { col, row });
+        await placeToken(room, actor, tokenId, { col, row });
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not move token.',
-        });
-      }
+        return { ok: true };
+      });
     });
 
     socket.on('token:unplace', (payload: TokenUnplacePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      const actor = room ? tokenActor(socket, room) : null;
-      if (!room || !actor) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
+      handleAck(ack, 'Could not remove token.', async () => {
+        const room = currentRoom(socket);
+        const actor = room ? tokenActor(socket, room) : null;
+        if (!room || !actor) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
 
-      const tokenId = typeof payload?.tokenId === 'string' ? payload.tokenId : '';
-      try {
-        unplaceToken(room, actor, tokenId);
+        const tokenId =
+          typeof payload?.tokenId === 'string' ? payload.tokenId : '';
+        await unplaceToken(room, actor, tokenId);
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not remove token.',
-        });
-      }
+        return { ok: true };
+      });
     });
 
     socket.on('token:rename', (payload: TokenRenamePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      const actor = room ? tokenActor(socket, room) : null;
-      if (!room || !actor) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
+      handleAck(ack, 'Could not rename token.', async () => {
+        const room = currentRoom(socket);
+        const actor = room ? tokenActor(socket, room) : null;
+        if (!room || !actor) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
 
-      const tokenId = typeof payload?.tokenId === 'string' ? payload.tokenId : '';
-      try {
-        const token = renameToken(room, actor, tokenId, payload?.name);
+        const tokenId =
+          typeof payload?.tokenId === 'string' ? payload.tokenId : '';
+        const token = await renameToken(room, actor, tokenId, payload?.name);
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true, token });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not rename token.',
-        });
-      }
+        return { ok: true, token };
+      });
     });
 
     socket.on('token:delete', (payload: TokenDeletePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      const actor = room ? tokenActor(socket, room) : null;
-      if (!room || !actor) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
+      handleAck(ack, 'Could not delete token.', async () => {
+        const room = currentRoom(socket);
+        const actor = room ? tokenActor(socket, room) : null;
+        if (!room || !actor) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
 
-      const tokenId = typeof payload?.tokenId === 'string' ? payload.tokenId : '';
-      try {
-        deleteToken(room, actor, tokenId);
+        const tokenId =
+          typeof payload?.tokenId === 'string' ? payload.tokenId : '';
+        await deleteToken(room, actor, tokenId);
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not delete token.',
-        });
-      }
+        return { ok: true };
+      });
     });
 
     socket.on('token:hide', (payload: TokenHidePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      const actor = room ? tokenActor(socket, room) : null;
-      if (!room || !actor) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
+      handleAck(ack, 'Could not change token visibility.', async () => {
+        const room = currentRoom(socket);
+        const actor = room ? tokenActor(socket, room) : null;
+        if (!room || !actor) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
 
-      const tokenId = typeof payload?.tokenId === 'string' ? payload.tokenId : '';
-      try {
-        const token = setTokenHidden(room, actor, tokenId, payload?.hidden);
+        const tokenId =
+          typeof payload?.tokenId === 'string' ? payload.tokenId : '';
+        const token = await setTokenHidden(
+          room,
+          actor,
+          tokenId,
+          payload?.hidden,
+        );
         io.to(room.id).emit('tokens:changed', publicTokens(room));
-        reply(ack, { ok: true, token });
-      } catch (error) {
-        reply(ack, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'Could not change token visibility.',
-        });
-      }
+        return { ok: true, token };
+      });
     });
 
     socket.on('grid:toggle', (payload: GridTogglePayload, ack?: Ack) => {
-      const room = currentRoom(socket);
-      if (!room) {
-        reply(ack, { ok: false, error: 'Session not found or already ended.' });
-        return;
-      }
-      if (socket.data.role !== 'gm') {
-        reply(ack, { ok: false, error: 'Only the GM can change the grid.' });
-        return;
-      }
+      handleAck(ack, 'Could not change the grid.', async () => {
+        const room = currentRoom(socket);
+        if (!room) {
+          return { ok: false, error: 'Session not found or already ended.' };
+        }
+        if (socket.data.role !== 'gm') {
+          return { ok: false, error: 'Only the GM can change the grid.' };
+        }
 
-      const visible = Boolean(payload?.visible);
-      setGridVisible(room, visible);
-      io.to(room.id).emit('grid:changed', { visible });
-      reply(ack, { ok: true });
+        const visible = Boolean(payload?.visible);
+        await setGridVisible(room, visible);
+        io.to(room.id).emit('grid:changed', { visible });
+        return { ok: true };
+      });
     });
 
     socket.on('pointer:move', (payload: PointPayload) => {
