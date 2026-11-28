@@ -115,14 +115,16 @@ The Express server serves the built client and the API from one process.
 1. Open the GM console and enter the passphrase.
 2. Click **New Campaign**.
 3. Enter a campaign name, then set up Scene 1.
-4. Use **Add Scene** to create more scenes and the stepper to move between them.
+4. Use **Add Scene** to create more scenes and the stepper to move between them. Use the
+   **Order** ← / → buttons to move the current scene earlier or later.
 5. Upload a background image or choose a built-in background. The preview updates.
 6. Click **Add grid** under **Token grid** if this scene should hold tokens.
 7. Drag the **Squares across** slider, or use the **← / →** arrows beside the count for
    single-step changes. Use the **Nudge** arrows until the grid lines align with the map.
 8. In **Scene tokens**, optionally enter a name and click **Add** for each enemy or NPC.
 9. Click a token marker, then click a square in the preview. Only the marker starts placement.
-   Placed markers are shaded. Names can be edited inline, and tokens can be deleted.
+   Placed markers are shaded and gain **Hide / Show** and **Stats** actions. Names can be edited
+   inline, and tokens can be deleted.
 10. Click **Save Campaign**. The campaign appears on the dashboard.
 11. Open the vertical ellipsis menu and choose **Launch**. Pre-placed GM tokens appear in the
     live scene.
@@ -183,6 +185,10 @@ actions.
   alignment reset.
 - Pre-launch GM token placement in the campaign builder, including names and placement in the
   preview. Pre-placed tokens appear when the campaign launches.
+- Campaign scenes can be reordered with the builder's **Order** arrows; the new order is saved
+  and used when the campaign launches.
+- Placed campaign tokens have **Hide / Show** and **Stats** actions. Hidden tokens stay visible
+  to the GM with a muted marker and launch in the hidden state.
 - Campaign copy, edit, delete, and launch.
 - One active live session at a time.
 - Live session uses the campaign's scenes with forward/back scene arrows in the GM header.

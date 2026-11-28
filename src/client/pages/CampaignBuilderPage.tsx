@@ -220,8 +220,37 @@ export function CampaignBuilderPage() {
     if (placingTokenId === tokenId) setPlacingTokenId(null);
   }
 
+  function toggleSceneTokenHidden(tokenId: string, hidden: boolean): void {
+    setScenes((previous) =>
+      previous.map((scene, index) =>
+        index === currentIndex
+          ? {
+              ...scene,
+              tokens: scene.tokens.map((token) =>
+                token.id === tokenId ? { ...token, hidden } : token,
+              ),
+            }
+          : scene,
+      ),
+    );
+  }
+
   function selectScene(index: number): void {
     setCurrentIndex(index);
+    setPlacingTokenId(null);
+  }
+
+  function moveCurrentScene(direction: -1 | 1): void {
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= scenes.length) return;
+
+    setScenes((previous) => {
+      const next = [...previous];
+      const [moved] = next.splice(currentIndex, 1);
+      next.splice(targetIndex, 0, moved!);
+      return next;
+    });
+    setCurrentIndex(targetIndex);
     setPlacingTokenId(null);
   }
 
@@ -427,12 +456,14 @@ export function CampaignBuilderPage() {
               />
 
               <CampaignTokenEditor
+                key={currentScene.id}
                 tokens={currentScene.tokens}
                 hasGrid={Boolean(currentScene.grid)}
                 placingTokenId={placingTokenId}
                 onAdd={addSceneToken}
                 onStartPlacement={setPlacingTokenId}
                 onRename={renameSceneToken}
+                onToggleHidden={toggleSceneTokenHidden}
                 onDelete={deleteSceneToken}
               />
 
@@ -451,6 +482,31 @@ export function CampaignBuilderPage() {
                     </button>
                   ))}
                 </div>
+
+                <div className="scene-order-controls" aria-label="Move current scene">
+                  <span className="muted small">Order</span>
+                  <button
+                    className="scene-order-button"
+                    type="button"
+                    title="Move this scene earlier"
+                    aria-label="Move this scene earlier"
+                    disabled={currentIndex === 0}
+                    onClick={() => moveCurrentScene(-1)}
+                  >
+                    ←
+                  </button>
+                  <button
+                    className="scene-order-button"
+                    type="button"
+                    title="Move this scene later"
+                    aria-label="Move this scene later"
+                    disabled={currentIndex === scenes.length - 1}
+                    onClick={() => moveCurrentScene(1)}
+                  >
+                    →
+                  </button>
+                </div>
+
                 <span className="muted small">
                   {scenes.length} scene{scenes.length === 1 ? '' : 's'}
                 </span>

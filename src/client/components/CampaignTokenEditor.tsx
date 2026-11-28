@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GM_TOKEN_COLORS, gmTokenShape } from '../../shared/shapes';
 import type { TokenInfo } from '../../shared/types';
 import { tokenInitials, tokenShapeForToken } from '../lib/tokens';
@@ -11,6 +11,7 @@ interface CampaignTokenEditorProps {
   onAdd: (kind: 'enemy' | 'npc', name: string) => void;
   onStartPlacement: (tokenId: string) => void;
   onRename: (tokenId: string, name: string) => void;
+  onToggleHidden: (tokenId: string, hidden: boolean) => void;
   onDelete: (tokenId: string) => void;
 }
 
@@ -21,12 +22,23 @@ export function CampaignTokenEditor({
   onAdd,
   onStartPlacement,
   onRename,
+  onToggleHidden,
   onDelete,
 }: CampaignTokenEditorProps) {
   const [tokenName, setTokenName] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [statsTokenId, setStatsTokenId] = useState<string | null>(null);
   const editCommitted = useRef(false);
+  const statsToken = statsTokenId
+    ? tokens.find((token) => token.id === statsTokenId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (statsTokenId && !tokens.some((token) => token.id === statsTokenId)) {
+      setStatsTokenId(null);
+    }
+  }, [statsTokenId, tokens]);
 
   function beginRename(token: TokenInfo): void {
     editCommitted.current = false;
@@ -119,6 +131,43 @@ export function CampaignTokenEditor({
         </button>
       </div>
 
+      {statsToken ? (
+        <div className="drawer-stats-card campaign-token-stats">
+          <div className="drawer-subhead">
+            <span className="header-label">Stats</span>
+            <button
+              className="icon-button small"
+              type="button"
+              aria-label="Close stats"
+              onClick={() => setStatsTokenId(null)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="campaign-token-stats-body">
+            <span
+              className="drawer-token-shape drawer-token-shape-large"
+              aria-hidden="true"
+            >
+              <TokenGlyph
+                shape={tokenShapeForToken(statsToken)}
+                color={statsToken.color}
+                label={tokenInitials(statsToken.label)}
+              />
+            </span>
+            <div>
+              <span className="eyebrow">
+                {statsToken.kind === 'enemy' ? 'Enemy' : 'NPC'}
+              </span>
+              <strong>{statsToken.label}</strong>
+              <p className="muted small">
+                Daggerheart stats and abilities will appear here in a later pass.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {tokens.length === 0 ? (
         <p className="muted small">
           No scene tokens yet. Add one above, then place it in the preview.
@@ -126,11 +175,18 @@ export function CampaignTokenEditor({
       ) : (
         <div className="drawer-token-list">
           {tokens.map((token) => (
-            <div key={token.id} className="active-token-row">
+            <div
+              key={token.id}
+              className={token.hidden ? 'active-token-row is-hidden' : 'active-token-row'}
+            >
               <button
-                className={
-                  token.cell ? 'active-token-icon is-on-scene' : 'active-token-icon'
-                }
+                className={[
+                  'active-token-icon',
+                  token.cell ? 'is-on-scene' : '',
+                  token.hidden ? 'is-hidden' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 type="button"
                 disabled={!hasGrid}
                 title={token.cell ? 'Move token' : 'Place token'}
@@ -176,17 +232,37 @@ export function CampaignTokenEditor({
                 </button>
               )}
 
-              <button
-                className="token-action danger"
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Delete "${token.label}" from this scene?`)) {
-                    onDelete(token.id);
-                  }
-                }}
-              >
-                Delete
-              </button>
+              <div className="active-token-actions">
+                {token.cell ? (
+                  <>
+                    <button
+                      className={token.hidden ? 'token-action active' : 'token-action'}
+                      type="button"
+                      onClick={() => onToggleHidden(token.id, !token.hidden)}
+                    >
+                      {token.hidden ? 'Show' : 'Hide'}
+                    </button>
+                    <button
+                      className="token-action"
+                      type="button"
+                      onClick={() => setStatsTokenId(token.id)}
+                    >
+                      Stats
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  className="token-action danger"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${token.label}" from this scene?`)) {
+                      onDelete(token.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

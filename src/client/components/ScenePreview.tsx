@@ -179,9 +179,13 @@ export function ScenePreview({
 
               return (
                 <div
-                  className={
-                    selected ? 'board-token-wrap selected' : 'board-token-wrap'
-                  }
+                  className={[
+                    'board-token-wrap',
+                    selected ? 'selected' : '',
+                    token.hidden ? 'is-hidden' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   key={token.id}
                   style={{
                     left: `${center.x * 100}%`,
