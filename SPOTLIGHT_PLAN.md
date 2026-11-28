@@ -1,6 +1,6 @@
 # Spotlight Toggle Plan
 
-Status: Direction approved. Four follow-up questions remain before implementation.
+Status: Direction approved. Two final questions remain: deployment topology and badge emphasis.
 
 ## 1. Request
 
@@ -29,6 +29,19 @@ Add a session-wide **Spotlight** mode that the GM can switch between **Players**
 - The GM control is a two-segment `Players | GM` group.
 - The player badge copy is `Players' spotlight` / `GM spotlight · movement paused`.
 - The GM can set the mode before any players join.
+- Pings stay enabled for players during GM spotlight. They are read-only and help the
+  table draw attention.
+- The Character drawer movement icon stays visible and is disabled with explanatory
+  copy. The rest of the drawer, tabs, notes, and stats remain fully usable.
+- Players get a persistent spotlight badge or alert, with no popup and nothing to click
+  or acknowledge. Because the mode will switch often, avoid repeated toasts.
+- A player who joins during GM spotlight cannot place their token until the mode switches
+  back to Players. They can place it immediately when the mode returns.
+- During Players spotlight, if the GM and the owner move the same token, the last move
+  accepted by the server wins. The GM should normally leave player tokens to their owners
+  and coordinate exceptions over Discord.
+- Header crowding is acknowledged as a future concern as character and stats UI grows;
+  keep this control compact and revisit the layout when those additions land.
 
 ## 2. Goals
 
@@ -64,6 +77,31 @@ Add a session-wide **Spotlight** mode that the GM can switch between **Players**
 - The GM header already has a header actions row with Grid, Join session, and End
   session. The player header has a title row with the session title and an optional GM
   offline chip.
+
+## 4a. Deployment and remote play
+
+The enforcement is server-side, so it behaves the same whether players are on localhost
+or connecting from Reno. The GM's toggle and every player's move are requests to the
+same server. The server processes them in arrival order and checks the room's current
+mode at that moment. Network latency changes how quickly clients see the badge and how
+long the GM control spends pending, not whether the rule is applied.
+
+- The GM control shows a pending/disabled state until the server acknowledges and
+  broadcasts the change. Do not optimistically show the new state.
+- A player move that reaches the server before the toggle is processed may land. A move
+  that arrives after the toggle is rejected with a non-blocking notice, and the client
+  refreshes the tokens. This is the accepted last-processed-wins behavior.
+- A reconnect or reload receives `room:state` with the current spotlight, so a client
+  that missed the broadcast corrects itself.
+- The room row and its spotlight survive a server restart.
+- Socket.IO already uses the deployed origin and reconnects automatically. No new
+  transport or CORS work is required.
+
+**Deployment constraint:** the current app keeps the active room and socket state in a
+single Node process. Run one server instance for now. Multiple instances or serverless
+deployments would need sticky sessions and a shared room store/Socket.IO adapter. That
+constraint already applies to `gridVisible`, presence, and the active room; the spotlight
+does not add a new one.
 
 ## 5. Proposed behavior
 
@@ -123,10 +161,12 @@ announced through `aria-live="polite"` when it changes.
 - Only the Character drawer's movement icon is disabled; the drawer itself, its tabs,
   stats, notes, and scene list stay fully usable.
 - The remove/unplace action is hidden or disabled while locked.
-- Pings remain available unless a follow-up answer removes them. Pings do not change
-  token state and do not weaken the movement lock.
-- A short-lived notice near the board is optional: “The GM has the spotlight. Your
-  token movement is paused.” It should not require dismissal.
+- Pings remain enabled. They do not change token state and do not weaken the movement
+  lock.
+- The persistent player badge is the alert. On a mode change, briefly highlight or pulse
+  the badge for a moment and announce the change with `aria-live`. Do not show a modal,
+  toast, or anything that requires a click or acknowledgement. Since the spotlight will
+  switch often, avoid repeated transient messages.
 
 ## 6. Review decisions
 
@@ -148,33 +188,31 @@ The original questions are resolved:
     follow after implementation review.
 11. **No players connected** — the GM control remains available.
 
-## 6a. Follow-up questions
+## 6a. Follow-up decisions
 
-1. **Pings during GM spotlight.** You said you do not mind either way. Keeping pings is
-   simpler and harmless: they are read-only and do not change token state. Do you want
-   pings kept, or disabled with the movement controls?
-   Recommendation: keep pings. If you prefer to reduce the player's token surface, we
-   can disable the player Scene drawer's ping rows without affecting movement gating.
+1. **Pings** — keep them enabled. They help players draw attention and do not change
+   token state.
+2. **Character drawer movement icon** — keep it visible and disable it with explanatory
+   copy. Everything else in the drawer remains usable.
+3. **Badge/alert** — use a persistent badge with a brief non-blocking highlight or pulse
+   when the mode changes. No popup, toast, or acknowledgement. Because the mode switches
+   often, avoid repeated transient messages.
+4. **New players** — no placement exception. A player who joins during GM spotlight can
+   place their token as soon as the mode returns to Players.
 
-2. **Character drawer movement icon.** Keep the icon and disable it with explanatory
-   copy, or remove it from the player's Character drawer entirely? Keeping and disabling
-   preserves the layout and makes the lock visible; removing it is a small UX reduction
-   but does not materially simplify the server or the gate.
-   Recommendation: keep and disable.
+## 6b. Final questions
 
-3. **Transient notice.** Should the player see a short board notice when the GM takes
-   the spotlight, in addition to the permanent header badge, or is the badge plus locked
-   cursor enough? The drawers and stats remain usable either way.
-   Recommendation: show one short, non-dismissible notice when GM spotlight turns on,
-   then rely on the persistent badge. No notice is needed when returning to Players.
+1. **Deployment topology.** Will the app run as a single Node/Socket.IO server instance
+   (the current architecture) for this deployment? The active room and sockets are held
+   in memory, so the spotlight behaves correctly on a single instance. Running multiple
+   instances or serverless would require sticky sessions and shared room state, which is
+   an infrastructure change beyond this feature.
+   Recommendation: deploy as a single instance for now and document the constraint.
 
-4. **A new player joining during GM spotlight.** With placement locked, their token
-   starts in the drawer and they cannot place it until the mode changes. The GM can
-   place it for them. Is that acceptable, or should a newly joined player get a one-time
-   placement exception?
-   Recommendation: no exception. The GM can place the token, and the badge explains why
-   the player cannot. A special join-time exception would create a second movement rule
-   and an inconsistent first experience.
+2. **Badge emphasis.** Is a persistent badge with a brief highlight/pulse when the mode
+   changes acceptable, or do you prefer a completely static badge? The highlight gives a
+   little attention without a popup or acknowledgement.
+   Recommendation: persistent badge plus a brief highlight and `aria-live` announcement.
 
 ## 7. Concerns and suggested solutions
 
@@ -215,6 +253,11 @@ awaiting the database write and revert it only if the write fails. That is a one
 behavioral improvement, not a new synchronization system. Test a simultaneous toggle
 and move once, but do not build a lock/queue around it.
 
+This works the same in a deployed single-instance environment. Remote players experience
+latency on the round trip, not a different rule: the GM control waits for the server
+acknowledgement, and any move processed after the toggle is rejected. See section 4a for
+the deployment constraint.
+
 ### Database migration
 
 Add an additive `spotlight_mode` enum column to `rooms` with a default of `'players'`
@@ -242,9 +285,9 @@ during GM spotlight must see the badge and the locked state on their first rende
 
 ### New players and simultaneous moves
 
-- A player who joins during GM spotlight cannot place their token until the mode changes,
-  unless the follow-up question decides on a join-time exception. The recommended rule
-  is no exception; the GM can place it for them.
+- A player who joins during GM spotlight cannot place their token until the mode changes
+  back to Players. There is no join-time exception. The GM can place it for them in the
+  meantime.
 - During Players spotlight, the GM and the owner can both move the same token. The last
   move accepted by the server wins, which matches the current behavior. No extra
   concurrency control is needed for this pass.
@@ -324,6 +367,8 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 - Add a `spotlightBusy` state and a `setSpotlight(next)` function using the existing
   `request('spotlight:set', { spotlight: next })` pattern.
 - Show `localError` if the request fails.
+- While the socket is reconnecting, keep the last known state visible and disable the
+  segments. Re-enable after `room:state` re-syncs.
 - Place it before the Grid control.
 
 ### Player header and movement gating
@@ -349,8 +394,10 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 - Add `.spotlight-control`, `.spotlight-segments`, `.spotlight-segment`, and
   `.spotlight-badge` styles using the existing header label, accent, and chip patterns.
 - Add a locked/GM state that uses a lock icon or amber accent, with text.
+- Add a brief badge highlight/pulse when the mode changes. Disable the animation under
+  `prefers-reduced-motion`.
 - Add responsive wrapping for the GM actions row.
-- Add an optional `.spotlight-notice` only if the transient banner is approved.
+- Do not add a modal or acknowledgement-based notice.
 
 ### Documentation
 
@@ -365,7 +412,10 @@ Use a GM window and two player windows.
 - A new room starts on Players.
 - The GM sees a segmented control in the session header; clicking Players or GM
   updates both players within a moment.
-- Players see the badge update to the active mode.
+- Players see the badge update to the active mode. The badge briefly highlights or
+  pulses; no modal, toast, or acknowledgement appears.
+- The GM control shows a pending state while the request is in flight and disables
+  while the socket is reconnecting.
 - On Players spotlight:
   - Each player can move, place, and unplace their own token.
   - The GM can move any token.
@@ -378,7 +428,8 @@ Use a GM window and two player windows.
     by the server.
   - The GM can move player tokens, NPCs, and enemies normally, including from the GM
     Token drawer.
-  - Pings, pointers, zoom, pan, scene drawers, every tab, notes, and stats still work.
+  - Player pings still work, including from the Scene drawer.
+  - Pointers, zoom, pan, scene drawers, every tab, notes, and stats still work.
   - The drawers remain fully usable; only the player's movement controls are disabled.
 - Switching to GM while a player is mid-placement cancels the player's placement.
 - Switching back to Players re-enables movement without a reload.
@@ -388,9 +439,14 @@ Use a GM window and two player windows.
 - During Players spotlight, if the GM and a player move the same token at nearly the
   same time, the last server-accepted move is the one everyone sees.
 - The mode survives scene changes, reconnect, page reload, and a server restart.
+- A stale player move rejected by the server shows a non-blocking notice and refreshes
+  the token state.
 - The header layout is usable at desktop and 620px widths.
 - Keyboard focus reaches the GM control; `aria-pressed`/`aria-live` announce the state.
 - No campaign data changes; starting a new session resets to the default.
+- Remote/deployed check: connect one client from a second machine or the deployed URL,
+  toggle the spotlight, confirm the badge and lock propagate, confirm a stale move is
+  rejected, and confirm a reconnect re-syncs the state. Run on a single server instance.
 - `npm run typecheck`, `npm run build`, and `npm audit --omit=dev` pass; no browser
   console errors.
 
