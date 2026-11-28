@@ -1,6 +1,6 @@
 # Spotlight Toggle Plan
 
-Status: Proposed — awaiting answers to the open questions.
+Status: Direction approved. Three follow-up questions remain before implementation.
 
 ## 1. Request
 
@@ -12,6 +12,23 @@ Add a session-wide **Spotlight** mode that the GM can switch between **Players**
   move any token, including player tokens, NPCs, and enemies.
 - The active spotlight is visible to every player, but only the GM can change it.
 - The GM control and the player indicator both live in the session header.
+
+## 1a. Decisions from review
+
+- Placement, movement, and removal of player tokens are all locked during GM spotlight.
+- New sessions default to **Players**.
+- The GM can move any token in either mode.
+- In-progress placement cancels immediately, and the server rejects every move received
+  after the switch.
+- Players keep full access to drawers, tabs, notes, and stats. Only token movement and
+  management are paused. This gives players something to review during the GM turn.
+- If the GM disconnects, the last spotlight state remains.
+- The mode is persisted on the live room and survives reloads, reconnects, and server
+  restarts.
+- The spotlight is session-wide, not per scene.
+- The GM control is a two-segment `Players | GM` group.
+- The player badge copy is `Players' spotlight` / `GM spotlight · movement paused`.
+- The GM can set the mode before any players join.
 
 ## 2. Goals
 
@@ -58,8 +75,7 @@ The spotlight is a room-level value with two states:
 'players' | 'gm'
 ```
 
-A new room starts on `'players'` unless the open questions change that. The state is
-session-wide and survives scene changes.
+A new room starts on `'players'`. The state is session-wide and survives scene changes.
 
 ### Permission matrix
 
@@ -68,8 +84,9 @@ session-wide and survives scene changes.
 | Players | Move any token | Move, place, or unplace their own player token |
 | GM | Move any token; add, rename, hide, delete, and place tokens | Cannot move, place, or unplace their own token |
 
-Pointers, pings, zoom, pan, scene viewing, token stats, and drawer browsing remain
-available to players in both modes.
+Pointers, pings, zoom, pan, scene viewing, token stats, and every drawer and tab remain
+available to players in both modes. Only the player's own token placement, movement, and
+removal controls are disabled during GM spotlight.
 
 ### UI proposal
 
@@ -103,57 +120,53 @@ announced through `aria-live="polite"` when it changes.
 
 - The player's own token uses the existing locked-token treatment (`board-token-locked`)
   with a `not-allowed` cursor and a title such as “The GM has the spotlight.”
-- The Character drawer token icon is disabled with copy explaining that movement is
-  paused.
+- Only the Character drawer's movement icon is disabled; the drawer itself, its tabs,
+  stats, notes, and scene list stay fully usable.
 - The remove/unplace action is hidden or disabled while locked.
+- Pings remain available unless a follow-up answer removes them. Pings do not change
+  token state and do not weaken the movement lock.
 - A short-lived notice near the board is optional: “The GM has the spotlight. Your
   token movement is paused.” It should not require dismissal.
 
-## 6. Open questions
+## 6. Review decisions
 
-1. **Does “move” include placing and unplacing?**
-   Recommendation: block all three for players during GM spotlight — placing from the
-   drawer, moving on the board, and returning the token to the drawer. Removing a token
-   changes the battlefield just as much as moving it.
+The original questions are resolved:
 
-2. **What is the default at launch?**
-   Recommendation: **Players**, so a new table can start moving immediately. The GM can
-   switch to GM spotlight whenever setup or reactions require it.
+1. **Movement scope** — place, move, and remove are all locked for players during GM
+   spotlight.
+2. **Default** — Players.
+3. **GM movement** — the GM can move any token in either mode.
+4. **Mid-placement** — cancel immediately; reject every move received after the switch.
+5. **Player access** — drawers, tabs, notes, and stats remain fully available. Only
+   token movement and management are locked.
+6. **GM disconnect** — keep the last state for this pass.
+7. **Persistence** — store it on the live room and survive reloads, reconnects, and
+   server restarts.
+8. **Scope** — session-wide across all scenes and players.
+9. **Control** — a two-segment `Players | GM` group.
+10. **Copy** — `Players' spotlight` / `GM spotlight · movement paused`; refinements can
+    follow after implementation review.
+11. **No players connected** — the GM control remains available.
 
-3. **Can the GM move player tokens during Player spotlight?**
-   Recommendation: yes. The request says the GM can move any token regardless of the
-   toggle, and the existing `canControlToken` already permits this.
+## 6a. Follow-up questions
 
-4. **What should happen if a player is mid-placement when the GM takes the spotlight?**
-   Recommendation: cancel the player's selection immediately and reject any move that
-   reaches the server after the toggle. Do not allow the in-flight move to land.
+1. **Pings during GM spotlight.** You said you do not mind either way. Keeping pings is
+   simpler and harmless: they are read-only and do not change token state. Do you want
+   pings kept, or disabled with the movement controls?
+   Recommendation: keep pings. If you prefer to reduce the player's token surface, we
+   can disable the player Scene drawer's ping rows without affecting movement gating.
 
-5. **How much player feedback do you want?**
-   Recommendation: the persistent header badge plus a locked cursor/title and disabled
-   drawer control. Add a transient board notice only if you want a stronger signal.
+2. **Character drawer movement icon.** Keep the icon and disable it with explanatory
+   copy, or remove it from the player's Character drawer entirely? Keeping and disabling
+   preserves the layout and makes the lock visible; removing it is a small UX reduction
+   but does not materially simplify the server or the gate.
+   Recommendation: keep and disable.
 
-6. **What happens if the GM disconnects while the spotlight is on Players?**
-   Recommendation: keep the last state for this pass. The development plan mentions a
-   future disconnect pause; that should be a separate rule with a timeout.
-
-7. **Should the mode survive reloads, reconnects, and server restarts?**
-   Recommendation: yes. Persist it on the live room, like `gridVisible`, and include it
-   in `PublicRoom` and `room:state`.
-
-8. **Is the spotlight session-wide or per scene?**
-   Recommendation: session-wide. It is a table state, not a property of a map.
-
-9. **Is the two-segment `Players | GM` control acceptable, or do you want a single
-   on/off toggle?**
-   Recommendation: two segments. It names both states directly and avoids ambiguity
-   about whether “on” means the GM or the players.
-
-10. **What exact player-facing copy do you want?**
-    Recommendation: `Players' spotlight` / `GM spotlight · movement paused`, with the
-    full sentence in the tooltip and screen-reader text.
-
-11. **Should the GM control remain available when no players are connected?**
-    Recommendation: yes. The GM may want to set the mode before players join.
+3. **Transient notice.** Should the player see a short board notice when the GM takes
+   the spotlight, in addition to the permanent header badge, or is the badge plus locked
+   cursor enough? The drawers and stats remain usable either way.
+   Recommendation: show one short, non-dismissible notice when GM spotlight turns on,
+   then rely on the persistent badge. No notice is needed when returning to Players.
 
 ## 7. Concerns and suggested solutions
 
@@ -166,17 +179,33 @@ spotlight. You cannot move your token right now.” so the client can display it
 
 ### Several movement entry points
 
-Players can start movement from the board token, the Character drawer, the player token
-list, the remove button, and Backspace/Delete. Gate them through one shared
-`movementLocked` value (`role === 'player' && room.spotlight === 'gm'`) rather than
-adding the check separately in each handler. Test every entry point.
+Players can start movement from the board token, the Character drawer, the remove
+button, and Backspace/Delete. The player Scene drawer is ping-only. Gate the movement
+paths through one shared `movementLocked` value
+(`role === 'player' && room.spotlight === 'gm'`) rather than adding the check separately
+in each handler.
+
+**Answer to “does reducing entry points make it easier?”** Reducing them slightly
+shrinks the number of client gates and test cases, but the server check is the real
+enforcement. The existing UI already funnels movement through `SceneStage` and the
+drawers, so a single `movementLocked` prop is manageable. Removing entry points is not
+required for security and would be a UX change. Recommendation: keep the entry points
+and gate them centrally. If you want a smaller surface, disabling the Character drawer
+movement icon is the only optional reduction worth considering.
 
 ### Toggle versus move race
 
-If the GM toggles while a player is moving, the server order determines the result.
-Make the in-memory room state take effect as soon as the GM toggle is accepted, then
-persist it. If the database write fails, revert and report the error. Reject moves that
-arrive after the switch. Test with a simultaneous toggle and move.
+**Answer to “the simpler the better.”** Use the existing `gridVisible` pattern: the GM
+toggle updates the room state and persists it, then broadcasts the change. The server
+checks the current mode when it processes each `token:place` or `token:unplace`. No
+client-side optimistic lock, no sequence numbers, and no extra coordination layer. A
+move already processed just before the switch may land; anything processed after the
+switch is rejected. This matches the accepted tolerance for real-time reactivity.
+
+If we want the smallest possible improvement, set the in-memory mode immediately before
+awaiting the database write and revert it only if the write fails. That is a one-line
+behavioral improvement, not a new synchronization system. Test a simultaneous toggle
+and move once, but do not build a lock/queue around it.
 
 ### Database migration
 
@@ -254,6 +283,8 @@ launch payloads. Starting a fresh session creates a new room with the default mo
   - Update the in-memory room state immediately so the next move sees the new mode.
   - Persist with `db.update(rooms).set({ spotlight: mode })`.
   - Revert the in-memory state if persistence fails.
+  - No lock, queue, or client-side optimistic sequencing. The server checks the
+    current mode when each move is processed.
 - Include `spotlight` in `publicRoom`.
 - Update `canControlToken` (or the callers) to reject a player when the mode is `'gm'`.
 - Add a `spotlight:set` socket handler:
@@ -290,9 +321,11 @@ launch payloads. Starting a fresh session creates a new room with the default mo
   - Do not unplace via the remove button or Backspace/Delete while locked.
   - Use the locked token styling and a clear title.
 - In `SessionDrawers`:
-  - Disable the player's Character token icon and token-list move buttons while locked.
+  - Disable only the player's Character drawer movement icon while locked.
   - Update the “Click the token icon to move your token” copy to explain the pause.
-  - Keep Stats and the player Scene drawer pings available.
+  - Keep the drawer navigation, every tab, notes, Stats, and the player Scene drawer
+    pings available. Movement gating must not close or disable the drawers.
+  - The GM's Token drawer move controls remain fully enabled.
 
 ### Styling
 
@@ -312,7 +345,7 @@ launch payloads. Starting a fresh session creates a new room with the default mo
 
 Use a GM window and two player windows.
 
-- A new room starts on the agreed default mode.
+- A new room starts on Players.
 - The GM sees a segmented control in the session header; clicking Players or GM
   updates both players within a moment.
 - Players see the badge update to the active mode.
@@ -321,13 +354,15 @@ Use a GM window and two player windows.
   - The GM can move any token.
 - On GM spotlight:
   - Both players' own tokens show the locked treatment.
-  - Clicking the board token, the Character drawer icon, or a token-list move control
-    does not start placement.
+  - Clicking the board token or the Character drawer movement icon does not start
+    placement.
   - Backspace/Delete and the remove button do not unplace the player's token.
   - A direct `token:place` or `token:unplace` socket request from a player is rejected
     by the server.
-  - The GM can move player tokens, NPCs, and enemies normally.
-  - Pings, pointers, zoom, pan, scene drawers, stats, and chat-like actions still work.
+  - The GM can move player tokens, NPCs, and enemies normally, including from the GM
+    Token drawer.
+  - Pings, pointers, zoom, pan, scene drawers, every tab, notes, and stats still work.
+  - The drawers remain fully usable; only the player's movement controls are disabled.
 - Switching to GM while a player is mid-placement cancels the player's placement.
 - Switching back to Players re-enables movement without a reload.
 - A player who joins or reloads during GM spotlight sees the correct badge and is
