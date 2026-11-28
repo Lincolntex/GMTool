@@ -331,6 +331,24 @@ scene regardless of window size or image aspect ratio.
   saves them with the scene, and the launch copies them into the live room.
 - Scenes can be reordered from the campaign builder with the **Order** arrows. Scene order is
   persisted through the scene `position` column and becomes the live scene order at launch.
+- The builder groups **Scene** actions (Add Scene, Delete Scene) above **Campaign** actions (Exit,
+  Save Campaign), separated by a horizontal rule. A single **Save Campaign** persists every scene
+  and its tokens, so the GM does not need to save between scene switches.
+- On narrow panes, the builder stacks the scene preview below the editor before the editor can
+  collapse below the width of its own controls. The editor column also has a minimum width so its
+  file input and token rows cannot spill into the preview.
+- The builder preview reuses the live scene camera math for local zoom and pan. Shift+wheel,
+  Shift+= / Shift+-, Shift+0, arrow-key panning, middle-mouse drag, Space+drag, and the
+  `-` / percentage / `+` cluster work the same way as the session view. Zoom is view-only, resets
+  on scene or background changes, and never changes the campaign or marks it dirty.
+- The preview has a **Maximize / Restore** button. Maximizing opens a near-fullscreen dialog with
+  the same camera and token-placement behavior; Escape, the Restore button, or the backdrop closes
+  it, and focus returns to the toggle. Grid previews default to up to 800px tall (600px without a
+  grid), and the builder and preview columns are wider than before.
+- **Exit** and the top-bar **Dashboard** link return to the GM dashboard without saving. When there
+  are unsaved changes, both ask for confirmation before discarding them. Dirty state is a deep
+  comparison against the loaded campaign (or the initial defaults for a new campaign), so reverting
+  an edit does not trigger the prompt.
 - Placed campaign tokens have **Hide / Show** and **Stats** actions in the builder. Hidden tokens
   remain visible to the GM with a muted marker, and their hidden state is saved and copied into
   the live room.

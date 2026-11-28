@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CampaignTokenEditor } from '../components/CampaignTokenEditor';
 import { GridEditor } from '../components/GridEditor';
@@ -55,6 +55,10 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
+function campaignSnapshot(name: string, scenes: CampaignScene[]): string {
+  return JSON.stringify({ name, scenes });
+}
+
 export function CampaignBuilderPage() {
   const { campaignId } = useParams();
   const navigate = useNavigate();
@@ -69,6 +73,14 @@ export function CampaignBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const baselineSnapshot = useRef<string | null>(null);
+
+  if (baselineSnapshot.current === null) {
+    baselineSnapshot.current = campaignSnapshot(name, scenes);
+  }
+
+  const currentSnapshot = useMemo(() => campaignSnapshot(name, scenes), [name, scenes]);
+  const hasUnsavedChanges = currentSnapshot !== baselineSnapshot.current;
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +96,10 @@ export function CampaignBuilderPage() {
         if (campaignId) {
           const response = await api<CampaignResponse>(`/api/campaigns/${campaignId}`);
           if (cancelled) return;
+          baselineSnapshot.current = campaignSnapshot(
+            response.campaign.name,
+            response.campaign.scenes,
+          );
           setName(response.campaign.name);
           setScenes(response.campaign.scenes);
           setCurrentIndex(0);
@@ -294,6 +310,23 @@ export function CampaignBuilderPage() {
     setPlacingTokenId(null);
   }
 
+  function confirmDiscard(): boolean {
+    if (!hasUnsavedChanges) return true;
+    return window.confirm('Discard unsaved changes and return to the GM dashboard?');
+  }
+
+  function exitBuilder(): void {
+    if (saving || uploading) return;
+    if (!confirmDiscard()) return;
+    navigate('/gm');
+  }
+
+  function handleDashboardClick(event: React.MouseEvent<HTMLAnchorElement>): void {
+    if (saving || uploading || !confirmDiscard()) {
+      event.preventDefault();
+    }
+  }
+
   async function saveCampaign(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
@@ -375,7 +408,7 @@ export function CampaignBuilderPage() {
         </Link>
         <div className="topbar-actions">
           <span className="muted small">Campaign builder</span>
-          <Link className="button ghost small" to="/gm">
+          <Link className="button ghost small" to="/gm" onClick={handleDashboardClick}>
             Dashboard
           </Link>
         </div>
@@ -513,20 +546,56 @@ export function CampaignBuilderPage() {
               </div>
 
               <div className="builder-actions">
-                <button className="button primary" type="submit" disabled={saving || uploading}>
-                  {saving ? 'Saving...' : 'Save Campaign'}
-                </button>
-                <button className="button" type="button" onClick={addScene}>
-                  Add Scene
-                </button>
-                <button
-                  className="button danger"
-                  type="button"
-                  onClick={deleteScene}
-                  disabled={scenes.length <= 1}
+                <div
+                  className="builder-action-group"
+                  role="group"
+                  aria-labelledby="builder-scene-actions-label"
                 >
-                  Delete Scene
-                </button>
+                  <span id="builder-scene-actions-label" className="builder-action-label">
+                    Scene
+                  </span>
+                  <div className="builder-action-row">
+                    <button className="button" type="button" onClick={addScene}>
+                      Add Scene
+                    </button>
+                    <button
+                      className="button danger"
+                      type="button"
+                      onClick={deleteScene}
+                      disabled={scenes.length <= 1}
+                    >
+                      Delete Scene
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="builder-action-group builder-action-group-campaign"
+                  role="group"
+                  aria-labelledby="builder-campaign-actions-label"
+                >
+                  <span id="builder-campaign-actions-label" className="builder-action-label">
+                    Campaign
+                  </span>
+                  <div className="builder-action-row builder-action-row-end">
+                    <button
+                      className="button ghost"
+                      type="button"
+                      title="Return to the GM dashboard without saving"
+                      disabled={saving || uploading}
+                      onClick={exitBuilder}
+                    >
+                      Exit
+                    </button>
+                    <button
+                      className="button primary"
+                      type="submit"
+                      disabled={saving || uploading}
+                    >
+                      {saving ? 'Saving...' : 'Save Campaign'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </section>
 

@@ -413,7 +413,7 @@ p {
 }
 
 .builder-main {
-  width: min(1320px, 100%);
+  width: min(1440px, 100%);
   margin: 0 auto;
   padding: clamp(24px, 4vw, 48px) clamp(18px, 3vw, 36px) 56px;
 }
@@ -433,7 +433,7 @@ p {
 
 .builder-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  grid-template-columns: minmax(420px, 1fr) minmax(320px, 520px);
   align-items: start;
   gap: 20px;
 }
@@ -505,14 +505,42 @@ p {
 }
 
 .builder-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  gap: 12px;
   padding-top: 4px;
 }
 
+.builder-action-group {
+  display: grid;
+  gap: 7px;
+}
+
+.builder-action-group-campaign {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.builder-action-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.builder-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.builder-action-row-end {
+  justify-content: flex-end;
+}
+
 .builder-layout.grid-editing {
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(420px, 0.68fr) minmax(0, 1.32fr);
 }
 
 .builder-preview {
@@ -530,7 +558,7 @@ p {
   box-shadow: var(--shadow);
 }
 
-.scene-preview-frame {
+.scene-preview-viewport {
   position: relative;
   width: 100%;
   margin-inline: auto;
@@ -538,6 +566,25 @@ p {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9px;
   background: #080c11;
+}
+
+.scene-preview-viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scene-preview-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #05080c;
+  touch-action: none;
+  user-select: none;
+  transform-origin: 50% 50%;
+  transform:
+    translate3d(var(--scene-pan-x, 0px), var(--scene-pan-y, 0px), 0)
+    scale(var(--scene-zoom, 1));
 }
 
 .scene-preview-frame img {
@@ -556,10 +603,23 @@ p {
   cursor: crosshair;
 }
 
+.scene-preview-viewport.is-panning,
+.scene-preview-viewport.is-panning .scene-preview-frame {
+  cursor: grabbing;
+}
+
+.scene-preview-viewport.is-space-held.is-zoomed .scene-preview-frame {
+  cursor: grab;
+}
+
+.scene-preview-viewport.is-space-held.is-zoomed .scene-preview-frame.placing-token {
+  cursor: crosshair;
+}
+
 .scene-preview-hint {
   position: absolute;
   left: 50%;
-  bottom: 10px;
+  top: 10px;
   z-index: 5;
   padding: 6px 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -574,11 +634,48 @@ p {
 }
 
 .scene-preview-meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 4px 2px;
+}
+
+.scene-preview-meta > div {
+  min-width: 0;
 }
 
 .scene-preview-meta h2 {
   margin: 0;
+}
+
+.scene-preview-maximize {
+  flex: 0 0 auto;
+}
+
+.scene-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(4, 7, 11, 0.74);
+  backdrop-filter: blur(4px);
+}
+
+.scene-preview-panel.is-maximized {
+  position: fixed;
+  inset: clamp(12px, 3vw, 36px);
+  z-index: 2001;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(12px, 2vw, 20px);
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, #1a2430, #0d131b);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.7);
+}
+
+.scene-preview-panel.is-maximized .scene-preview-viewport {
+  margin-block: auto;
 }
 
 .grid-editor {
@@ -2488,6 +2585,14 @@ input[type="file"]::file-selector-button {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .builder-layout.grid-editing {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-layout.grid-editing .builder-preview {
+    position: static;
+  }
 }
 
 @media (max-width: 900px) {
@@ -2502,6 +2607,14 @@ input[type="file"]::file-selector-button {
 }
 
 @media (max-width: 620px) {
+  .builder-action-row-end {
+    justify-content: flex-start;
+  }
+
+  .builder-action-row-end .button {
+    flex: 1 1 140px;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;

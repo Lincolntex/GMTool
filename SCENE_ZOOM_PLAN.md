@@ -80,7 +80,8 @@ These decisions were confirmed in review on 2026-11-27.
 - Per-scene or per-room camera persistence.
 - Pinch zoom and touch gesture recognition.
 - Rotating, flipping, or skewing the scene.
-- Zooming the campaign builder preview. The builder can reuse the same camera helper later.
+- Zooming the campaign builder preview in this pass. The builder later reused the same camera math
+  as part of the Campaign Editor UI overhaul.
 - The campaign editor image-resolution callout. This is deferred to the planned Campaign Editor UI
   overhaul. Recommended copy and sizing guidance are retained in section 10 for that pass.
 

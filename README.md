@@ -126,7 +126,11 @@ The Express server serves the built client and the API from one process.
 9. Click a token marker, then click a square in the preview. Only the marker starts placement.
    Placed markers are shaded and gain **Hide / Show** and **Stats** actions. Names can be edited
    inline, and tokens can be deleted.
-10. Click **Save Campaign**. The campaign appears on the dashboard.
+10. Click **Save Campaign** to persist the whole campaign, including every scene and its tokens. The
+    campaign appears on the dashboard. The builder groups **Scene** actions (Add Scene, Delete Scene)
+    above **Campaign** actions (Exit, Save Campaign). **Exit** and the top-bar **Dashboard** link
+    return to the dashboard without saving; if there are unsaved changes, both ask for confirmation
+    before discarding them.
 11. Open the vertical ellipsis menu and choose **Launch**. Pre-placed GM tokens appear in the
     live scene.
 12. In the live session, use the forward/back arrows under **Scenes** or the **Scenes** icon
@@ -192,6 +196,11 @@ actions.
 - Local GM passphrase.
 - PostgreSQL-backed campaign list with Drizzle migrations.
 - Multi-scene campaign builder with scene stepper and preview.
+- The builder preview uses the same local camera as the live scene: Shift+wheel, Shift+= / Shift+-,
+  Shift+0, arrow-key panning, middle-mouse or Space+drag panning, and the `-` / percentage / `+`
+  control cluster. Zoom stays local to the builder and resets on scene or background changes.
+  A **Maximize** button opens a near-fullscreen preview, and grid previews default to up to 800px
+  tall.
 - Scene background upload or snow/grass/dungeon presets.
 - Optional per-scene square grid with a size slider, single-step arrows, offset nudges, and
   alignment reset.
