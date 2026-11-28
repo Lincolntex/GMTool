@@ -126,7 +126,8 @@ The Express server serves the built client and the API from one process.
 9. Click a token marker, then click a square in the preview. Only the marker starts placement.
    Placed markers are shaded and gain **Hide / Show** and **Stats** actions. Names can be edited
    inline, and tokens can be deleted.
-10. Click **Save Campaign**. The campaign appears on the dashboard.
+10. Click **Save Campaign**. The campaign appears on the dashboard. Click **Exit** beside Save to
+    return to the dashboard without saving any pending builder changes.
 11. Open the vertical ellipsis menu and choose **Launch**. Pre-placed GM tokens appear in the
     live scene.
 12. In the live session, use the forward/back arrows under **Scenes** or the **Scenes** icon

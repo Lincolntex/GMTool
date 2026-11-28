@@ -516,6 +516,15 @@ export function CampaignBuilderPage() {
                 <button className="button primary" type="submit" disabled={saving || uploading}>
                   {saving ? 'Saving...' : 'Save Campaign'}
                 </button>
+                <button
+                  className="button ghost"
+                  type="button"
+                  title="Return to the GM dashboard without saving"
+                  disabled={saving}
+                  onClick={() => navigate('/gm')}
+                >
+                  Exit
+                </button>
                 <button className="button" type="button" onClick={addScene}>
                   Add Scene
                 </button>

@@ -331,6 +331,8 @@ scene regardless of window size or image aspect ratio.
   saves them with the scene, and the launch copies them into the live room.
 - Scenes can be reordered from the campaign builder with the **Order** arrows. Scene order is
   persisted through the scene `position` column and becomes the live scene order at launch.
+- The builder has an **Exit** button beside **Save Campaign** that returns to the GM dashboard
+  without saving pending changes.
 - Placed campaign tokens have **Hide / Show** and **Stats** actions in the builder. Hidden tokens
   remain visible to the GM with a muted marker, and their hidden state is saved and copied into
   the live room.
